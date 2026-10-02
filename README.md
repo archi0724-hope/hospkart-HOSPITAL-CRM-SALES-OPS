@@ -3,7 +3,7 @@
 VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with:
 
 - floating SmartBot icon in the bottom-right corner
-- Gemini chatbot adapted from the idea in `archi0724/smartbot`
+- OpenAI-powered chatbot adapted from the idea in `archi0724/smartbot`
 - official Meta WhatsApp Cloud API connection
 - WhatsApp handoff for each hospital/client
 - manual WhatsApp message sending
@@ -12,7 +12,7 @@ VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with
 - optional AI auto-replies to inbound hospital messages
 - SQLite logs for WhatsApp messages and scheduled jobs
 
-The referenced SmartBot repository is a small Streamlit + Gemini application. This project keeps its Gemini 2.5 Flash chatbot concept but changes the UI/backend structure so the assistant can be embedded directly inside the HOSPkart CRM dashboard.
+The referenced SmartBot repository inspired this assistant. This project uses the OpenAI Responses API so the assistant can be embedded directly inside the HOSPkart CRM dashboard.
 
 ## 1. Open in VS Code
 
@@ -58,8 +58,11 @@ Copy `.env.example` to `.env` and add your credentials.
 Minimum for SmartBot:
 
 ```env
-GOOGLE_API_KEY=your_google_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4.1-mini
 ```
+
+Create your API key at https://platform.openai.com/api-keys and keep it in the private `.env` file. Restart the Python server after changing credentials. OpenAI API usage requires API access and billing; the app does not use your ChatGPT login.
 
 Minimum for WhatsApp Cloud API:
 
