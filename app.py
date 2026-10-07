@@ -2,7 +2,12 @@ import json
 import os
 import re
 import sqlite3
+import smtplib
+import ssl
 from datetime import datetime
+from contextlib import contextmanager
+from email.message import EmailMessage
+from email.utils import formataddr, make_msgid
 from io import BytesIO
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -59,10 +64,15 @@ def env_bool(name: str, default: bool = False) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
+@contextmanager
 def db_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db():
@@ -95,12 +105,204 @@ def init_db():
                 created_at TEXT NOT NULL,
                 sent_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS email_followups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                client_name TEXT,
+                subject TEXT NOT NULL,
+                message TEXT NOT NULL,
+                scheduled_at TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                last_error TEXT,
+                created_at TEXT NOT NULL,
+                sent_at TEXT,
+                message_id TEXT
+            );
             """
         )
 
 
 def now_iso():
     return datetime.now(IST).isoformat(timespec="seconds")
+
+
+def normalize_email(value):
+    value = str(value or "").strip()
+    if len(value) > 254 or not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+", value):
+        raise ValueError("Enter one valid email address per customer.")
+    local = value.split("@", 1)[0]
+    if local.startswith(".") or local.endswith(".") or ".." in local:
+        raise ValueError("Enter one valid email address per customer.")
+    return value
+
+
+def email_settings():
+    host = os.getenv("SMTP_HOST", "").strip()
+    sender = normalize_email(os.getenv("EMAIL_FROM", ""))
+    security = os.getenv("SMTP_SECURITY", "starttls").strip().lower()
+    if not host or security not in {"starttls", "ssl"}:
+        raise ValueError("Configure SMTP_HOST and SMTP_SECURITY (starttls or ssl) in .env.")
+    port = int(os.getenv("SMTP_PORT", "465" if security == "ssl" else "587"))
+    if not 1 <= port <= 65535:
+        raise ValueError("SMTP_PORT must be between 1 and 65535.")
+    user = os.getenv("SMTP_USERNAME", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "")
+    if bool(user) != bool(password):
+        raise ValueError("Configure both SMTP_USERNAME and SMTP_PASSWORD.")
+    return host, port, security, sender, user, password
+
+
+def email_configured():
+    try:
+        email_settings()
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def send_email(to, subject, message):
+    host, port, security, sender, user, password = email_settings()
+    mail = EmailMessage()
+    mail["From"] = formataddr((os.getenv("EMAIL_FROM_NAME", "HOSPkart"), sender))
+    mail["To"] = normalize_email(to)
+    mail["Subject"] = subject
+    mail["Message-ID"] = make_msgid()
+    mail.set_content(message)
+    context = ssl.create_default_context()
+    transport = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
+    kwargs = {"timeout": 30}
+    if security == "ssl":
+        kwargs["context"] = context
+    with transport(host, port, **kwargs) as smtp:
+        if security == "starttls":
+            smtp.starttls(context=context)
+        if user:
+            smtp.login(user, password)
+        refused = smtp.send_message(mail)
+        if refused:
+            raise RuntimeError("The email server refused the recipient.")
+    return mail["Message-ID"]
+
+
+def email_error(exc):
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        return "Email login failed. Check the SMTP credentials in .env."
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        return "The email server refused the recipient address."
+    if isinstance(exc, (TimeoutError, OSError, smtplib.SMTPException)):
+        return "Email server connection or sending failed. Check the sender outbox before scheduling again."
+    return "Email sending failed. Check the sender configuration and outbox before scheduling again."
+
+
+def process_due_emails():
+    if not email_configured():
+        return
+    with db_conn() as conn:
+        rows = conn.execute("SELECT * FROM email_followups WHERE status='pending' AND scheduled_at<=? AND (mode='immediate' OR ?=1) ORDER BY scheduled_at, id LIMIT 50", (now_iso(), int(env_bool("EMAIL_AUTOMATION_ENABLED", False)))).fetchall()
+    for row in rows:
+        if row["mode"] == "scheduled" and not env_bool("EMAIL_AUTOMATION_ENABLED", False):
+            continue
+        if datetime.fromisoformat(row["scheduled_at"]) > datetime.now(IST):
+            continue
+        # Commit the claim before contacting SMTP so concurrent workers cannot send twice.
+        with db_conn() as conn:
+            claimed = conn.execute("UPDATE email_followups SET status='sending' WHERE id=? AND status='pending'", (row["id"],)).rowcount
+        if not claimed:
+            continue
+        try:
+            message_id = send_email(row["email"], row["subject"], row["message"])
+        except Exception as exc:
+            with db_conn() as conn:
+                conn.execute("UPDATE email_followups SET status='failed', last_error=? WHERE id=?", (email_error(exc), row["id"]))
+        else:
+            with db_conn() as conn:
+                conn.execute("UPDATE email_followups SET status='accepted', sent_at=?, message_id=?, last_error=NULL WHERE id=?", (now_iso(), message_id, row["id"]))
+
+
+def queue_email_followups(mode):
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "Provide an email follow-up request."}), 400
+    try:
+        if body.get("confirmed_recipients") is not True:
+            raise ValueError("Review and confirm the email recipients before sending or scheduling.")
+        subject = str(body.get("subject") or "").strip()
+        message = str(body.get("message") or "").strip()
+        if not subject or len(subject) > 200 or "\r" in subject or "\n" in subject:
+            raise ValueError("Enter a subject of up to 200 characters on one line.")
+        if not message or len(message) > 20000:
+            raise ValueError("Enter an email message of up to 20,000 characters.")
+        recipients = body.get("recipients")
+        if not isinstance(recipients, list) or not 1 <= len(recipients) <= 5000:
+            raise ValueError("Select between 1 and 5,000 customers per batch.")
+        scheduled = datetime.now(IST)
+        if mode == "scheduled":
+            scheduled = datetime.fromisoformat(str(body.get("scheduled_at") or ""))
+            if scheduled.tzinfo is None:
+                scheduled = scheduled.replace(tzinfo=IST)
+            scheduled = scheduled.astimezone(IST)
+            if scheduled <= datetime.now(IST):
+                raise ValueError("Choose a future schedule date and time (India time).")
+        valid, skipped, seen = [], [], set()
+        for recipient in recipients:
+            if not isinstance(recipient, dict):
+                skipped.append({"email": "", "reason": "Invalid customer record"})
+                continue
+            try:
+                address = normalize_email(recipient.get("email"))
+            except ValueError:
+                skipped.append({"email": str(recipient.get("email") or "")[:254], "reason": "Missing or invalid email"})
+                continue
+            if address.lower() in seen:
+                skipped.append({"email": address, "reason": "Duplicate email"})
+                continue
+            seen.add(address.lower())
+            fields = {key: str(recipient.get(key) or "")[:500] for key in ("name", "contact", "requirement", "product")}
+            fields["contact"] = fields["contact"] or "Purchase Team"
+            def personalize(text):
+                return re.sub(r"\{\{(name|contact|requirement|product)\}\}", lambda match: fields[match.group(1)], text)
+            personalized_subject = personalize(subject)
+            if "\n" in personalized_subject or "\r" in personalized_subject or len(personalized_subject) > 200:
+                raise ValueError("A personalized subject is too long or contains a line break. Review the customer fields.")
+            personalized_message = personalize(message)
+            if len(personalized_message) > 20000:
+                raise ValueError("A personalized message exceeds 20,000 characters.")
+            valid.append((address, fields["name"], personalized_subject, personalized_message, scheduled.isoformat(timespec="seconds"), mode, now_iso()))
+        if not valid:
+            raise ValueError("No customers have valid email addresses. Update their email fields first.")
+        if not email_configured():
+            return jsonify({"ok": False, "error": "Email sender is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_SECURITY, EMAIL_FROM and SMTP credentials to the private .env file, then restart the server."}), 503
+        with db_conn() as conn:
+            conn.executemany("INSERT INTO email_followups(email, client_name, subject, message, scheduled_at, mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", valid)
+        return jsonify({"ok": True, "queued": len(valid), "skipped": skipped, "automation_enabled": env_bool("EMAIL_AUTOMATION_ENABLED", False)}), 202
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.post("/api/email/send")
+def api_send_email():
+    return queue_email_followups("immediate")
+
+
+@app.post("/api/email/schedule")
+def api_schedule_email():
+    return queue_email_followups("scheduled")
+
+
+@app.get("/api/email/followups")
+def api_email_followups():
+    with db_conn() as conn:
+        rows = conn.execute("SELECT * FROM email_followups ORDER BY id DESC LIMIT 200").fetchall()
+        counts = {row["status"]: row["total"] for row in conn.execute("SELECT status, COUNT(*) AS total FROM email_followups GROUP BY status")}
+    return jsonify({"ok": True, "items": [dict(row) for row in rows], "counts": counts})
+
+
+@app.delete("/api/email/followups/<int:job_id>")
+def api_cancel_email(job_id):
+    with db_conn() as conn:
+        changed = conn.execute("UPDATE email_followups SET status='cancelled' WHERE id=? AND status='pending'", (job_id,)).rowcount
+    return jsonify({"ok": True, "updated": changed})
 
 
 def normalize_phone(phone: str) -> str:
@@ -428,6 +630,8 @@ def health():
             "whatsapp_configured": whatsapp_configured(),
             "automation_enabled": env_bool("WHATSAPP_AUTOMATION_ENABLED", False),
             "auto_reply_enabled": env_bool("WHATSAPP_AUTO_REPLY_ENABLED", False),
+            "email_configured": email_configured(),
+            "email_automation_enabled": env_bool("EMAIL_AUTOMATION_ENABLED", False),
             "time": now_iso(),
         }
     )
@@ -591,6 +795,7 @@ def receive_webhook():
 init_db()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 scheduler.add_job(process_due_messages, "interval", seconds=60, id="whatsapp_followups", replace_existing=True)
+scheduler.add_job(process_due_emails, "interval", seconds=15, id="email_followups", replace_existing=True)
 scheduler.start()
 
 if __name__ == "__main__":

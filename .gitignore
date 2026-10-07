@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 data/*.db
 data/*.db-*
+localhost.stdout.log
+localhost.stderr.log

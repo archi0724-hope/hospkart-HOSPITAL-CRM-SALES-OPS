@@ -97,6 +97,39 @@ Enter the hospital and contact details, requirement, quotation value, follow-up 
 
 CRM records are saved in the current browser's localStorage and remain after refresh. Use **Data & backups** to download a checkpoint before changing browsers or clearing browser storage. SmartBot and WhatsApp API features require the Python server.
 
+## Hospital work colors
+
+Hospital names, list rows and follow-up cards show their work status: **red** for untouched records, **green** for connected calls or accepted outreach, **yellow** for calls that did not connect, and **blue** for queries or orders. Recorded query/quotation/order stages take priority over ordinary outreach in Automatic mode. Preparing a draft, queuing an email or opening WhatsApp does not count as completed outreach; email must be accepted by the sender before it turns a record green.
+
+Use the color dropdown beside a hospital to set a manual color, or select **Automatic** to use saved activity again. A manual color stays in place after subsequent activity. **Remarks / color** opens the work-status editor; blue requires a remark describing the query or order. These controls are also available in Already Served, Doctors, and Potential Leads, where each imported section retains its own work status. The client form includes **Hospital work color** as well.
+
+Colors and remarks are saved in the current browser and included in JSON checkpoints. Main client Excel exports include the resolved work color, work status label and manual/automatic mode. Email activity is synchronized from the backend while the dashboard is open. Keep a checkpoint before clearing browser data or changing browsers.
+
+## Email follow-ups
+
+Open **Email Follow-ups** to send to all customers in **Hospitals & Clients**, only customers whose follow-up date is due, or one selected customer. Add customer email addresses through **View / Edit** first. Missing/invalid email addresses are skipped; duplicate addresses receive one email per batch. Other independently imported sections are not included in the client master.
+
+Review the recipient list and first personalized message, then use **Send now** or choose a future date/time (India time) and **Schedule follow-ups**. Supported placeholders are `{{name}}`, `{{contact}}`, `{{product}}`, and `{{requirement}}`. Each recipient gets a separate email; other customers' addresses are never included.
+
+Use **Email follow-up** beside customers on the dashboard, client master, lead cards, quotations, orders, feedback, calling queue and call history. These shortcuts open a draft for that customer with a message suited to their follow-up stage. A future CRM follow-up date is suggested at 10:00 India time; overdue dates are left blank so you can send now or choose a new schedule. The call and feedback drawers also offer email shortcuts. **Email due follow-ups** on the calling page prepares a batch for customers due today or overdue. All drafts require review before sending.
+
+Configure these values in your private `.env` file using your email provider's SMTP settings, then restart Python:
+
+```env
+SMTP_HOST=your-provider-smtp-host
+SMTP_PORT=587
+SMTP_SECURITY=starttls
+SMTP_USERNAME=your-sender-account
+SMTP_PASSWORD=your-provider-smtp-credential
+EMAIL_FROM=your-sender@example.com
+EMAIL_FROM_NAME=HOSPkart
+EMAIL_AUTOMATION_ENABLED=true
+```
+
+For implicit TLS use `SMTP_SECURITY=ssl` and your provider's SSL port (usually 465). Keep credentials in `.env`, never in dashboard fields. Sending uses Python's [SMTP client](https://docs.python.org/3/library/smtplib.html) with verified TLS.
+
+The queue is saved in SQLite. **Send now** jobs are picked up every 15 seconds (up to 50 per pass); scheduled jobs require `EMAIL_AUTOMATION_ENABLED=true`. Leave the local server running for either kind of sending. History shows pending, sending, accepted, failed and cancelled jobs. Accepted means SMTP accepted the message, not confirmed delivery. Cancel pending jobs from history. Failed jobs are not automatically retried; check your sender outbox before creating a replacement. If the server stops during sending, that job stays in `sending` to avoid automatic duplicate delivery. This local version does not track email opens, bounces or replies.
+
 ## 6. WhatsApp Cloud API setup
 
 You need a Meta business portfolio, a WhatsApp Business Account and a WhatsApp-enabled business phone number. Configure your Meta app for WhatsApp Cloud API, then set the webhook callback to:
