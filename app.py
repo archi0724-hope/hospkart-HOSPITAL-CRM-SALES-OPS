@@ -6,10 +6,12 @@ import smtplib
 import ssl
 from datetime import datetime
 from contextlib import contextmanager
+from functools import wraps
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
 from io import BytesIO
 from pathlib import Path
+from threading import RLock
 from zoneinfo import ZoneInfo
 
 import requests
@@ -58,6 +60,15 @@ load_dotenv(BASE_DIR / ".env")
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
+messaging_lock = RLock()
+
+
+def with_messaging_lock(function):
+    @wraps(function)
+    def locked(*args, **kwargs):
+        with messaging_lock:
+            return function(*args, **kwargs)
+    return locked
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -195,6 +206,7 @@ def email_error(exc):
     return "Email sending failed. Check the sender configuration and outbox before scheduling again."
 
 
+@with_messaging_lock
 def process_due_emails():
     if not email_configured():
         return
@@ -220,6 +232,7 @@ def process_due_emails():
                 conn.execute("UPDATE email_followups SET status='accepted', sent_at=?, message_id=?, last_error=NULL WHERE id=?", (now_iso(), message_id, row["id"]))
 
 
+@with_messaging_lock
 def queue_email_followups(mode):
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
@@ -305,6 +318,23 @@ def api_cancel_email(job_id):
     return jsonify({"ok": True, "updated": changed})
 
 
+@app.post("/api/dashboard/reset")
+def api_reset_dashboard():
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or body.get("confirmed_reset") is not True or body.get("confirmation") != "RESET DASHBOARD":
+        return jsonify({"ok": False, "error": "Confirm permanent deletion and type RESET DASHBOARD."}), 400
+    if not messaging_lock.acquire(blocking=False):
+        return jsonify({"ok": False, "error": "Follow-up activity is in progress. Wait for it to finish, then reset again."}), 409
+    try:
+        with db_conn() as conn:
+            cleared = {}
+            for table in ("email_followups", "scheduled_messages", "message_log"):
+                cleared[table] = conn.execute(f"DELETE FROM {table}").rowcount
+        return jsonify({"ok": True, "cleared": cleared})
+    finally:
+        messaging_lock.release()
+
+
 def normalize_phone(phone: str) -> str:
     digits = re.sub(r"\D", "", phone or "")
     if not digits:
@@ -360,6 +390,7 @@ def log_message(direction: str, channel: str, phone: str, message: str, client_n
         )
 
 
+@with_messaging_lock
 def send_text(phone: str, message: str, client_name: str = "") -> dict:
     phone = normalize_phone(phone)
     payload = {
@@ -375,6 +406,7 @@ def send_text(phone: str, message: str, client_name: str = "") -> dict:
     return data
 
 
+@with_messaging_lock
 def send_template(phone: str, template_name: str, language: str = "en_US", parameters=None, client_name: str = "") -> dict:
     phone = normalize_phone(phone)
     parameters = parameters or []
@@ -508,6 +540,7 @@ def extract_inbound_messages(payload: dict):
     return items
 
 
+@with_messaging_lock
 def process_due_messages():
     if not env_bool("WHATSAPP_AUTOMATION_ENABLED", False) or not whatsapp_configured():
         return
@@ -687,6 +720,7 @@ def api_send_template():
 
 
 @app.post("/api/whatsapp/schedule")
+@with_messaging_lock
 def schedule_whatsapp():
     body = request.get_json(silent=True) or {}
     if body.get("confirmed_opt_in") is not True:
@@ -763,6 +797,7 @@ def verify_webhook():
 
 
 @app.post("/webhook")
+@with_messaging_lock
 def receive_webhook():
     payload = request.get_json(silent=True) or {}
     inbound = extract_inbound_messages(payload)

@@ -97,6 +97,12 @@ Enter the hospital and contact details, requirement, quotation value, follow-up 
 
 CRM records are saved in the current browser's localStorage and remain after refresh. Use **Data & backups** to download a checkpoint before changing browsers or clearing browser storage. SmartBot and WhatsApp API features require the Python server.
 
+## Reset the dashboard permanently
+
+In **Data & backups**, acknowledge permanent deletion, type **RESET DASHBOARD**, and click **Clear all dashboard data**. Reset removes all clients, calls, feedback, imported sections, work colors, saved checkpoints, email/WhatsApp history and scheduled follow-ups. **No backup is created**, saved checkpoints become **0**, and records remain empty after refreshing. Other dashboard tabs in the same browser reload to show the cleared data. Credentials and sender configuration remain available for new work.
+
+The Python server must be running to clear messaging history. If a follow-up is currently being processed, wait for it to finish and reset again. Backend errors leave the browser records and checkpoints in place. Previously downloaded files and messages already sent to customers cannot be recalled by resetting the dashboard.
+
 ## Hospital work colors
 
 Hospital names, list rows and follow-up cards show their work status: **red** for untouched records, **green** for connected calls or accepted outreach, **yellow** for calls that did not connect, and **blue** for queries or orders. Recorded query/quotation/order stages take priority over ordinary outreach in Automatic mode. Preparing a draft, queuing an email or opening WhatsApp does not count as completed outreach; email must be accepted by the sender before it turns a record green.

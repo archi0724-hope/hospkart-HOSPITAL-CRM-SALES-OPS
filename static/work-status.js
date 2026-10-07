@@ -41,6 +41,7 @@ function saveWorkRecords(scope) {
 }
 
 function changeWorkColor(select) {
+  if (dashboardResetting) return;
   const {workId: id, workScope: scope} = select.dataset, record = findWorkRecord(id, scope);
   if (!record) return;
   const chosen = select.value;
@@ -81,6 +82,7 @@ function updateWorkRemarkRequirement() {
 
 function saveWorkStatus(event) {
   event.preventDefault();
+  if (dashboardResetting) return;
   const scope = document.getElementById('workRecordScope').value;
   const record = findWorkRecord(document.getElementById('workRecordId').value, scope);
   if (!record) return;
@@ -116,6 +118,7 @@ function markWorkOutreach(record) {
 }
 
 function syncEmailWorkStatus(items) {
+  if (dashboardResetting) return;
   let changed = false;
   items.filter(job => job.status === 'accepted' && job.sent_at).forEach(job => {
     const matches = clients.filter(client => String(client.email || '').trim().toLowerCase() === job.email.toLowerCase());
@@ -132,9 +135,12 @@ function syncEmailWorkStatus(items) {
 }
 
 async function refreshWorkEmailStatus() {
+  const version = dashboardDataVersion;
+  if (dashboardResetting) return;
   try {
     const response = await fetch('/api/email/followups');
     const data = await response.json();
+    if (dashboardResetting || version !== dashboardDataVersion) return;
     if (response.ok && data.ok) syncEmailWorkStatus(data.items);
   } catch (_) { /* Offline dashboards keep their saved colors. */ }
 }
