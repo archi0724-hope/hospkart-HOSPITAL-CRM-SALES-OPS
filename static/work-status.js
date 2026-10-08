@@ -4,12 +4,13 @@ const workColors = {
 const blueWorkStages = ['Query Received', 'Quotation Shared', 'Negotiation', 'PO / Order Confirmed', 'Delivered', 'Feedback Pending', 'Completed / Served'];
 
 function findWorkRecord(id, scope = 'clients') {
-  return (scope === 'clients' ? clients : segmentData[scope] || []).find(record => record.id === id);
+  const records=scope==='clients'?clients:scope==='leads'?sectionRecords.leads:scope==='rghs'?sectionRecords.rghs:segmentData[scope]||[];
+  return records.find(record => record.id === id);
 }
 
 function automaticWorkColor(record, scope = 'clients') {
   if (blueWorkStages.includes(record.status) || Number(record.order) > 0 || record.workQueryReceived) return 'blue';
-  const history = scope === 'clients' ? calls.map((entry, index) => ({entry, index})).filter(({entry}) => entry.clientId === record.id).sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.index - a.index) : [];
+  const history = calls.map((entry, index) => ({entry, index})).filter(({entry}) => entry.clientId === record.id && (entry.recordScope || 'clients') === scope).sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.index - a.index);
   const latest = history[0]?.entry;
   const callTime = latest ? Date.parse(latest.workOccurredAt || latest.date + 'T00:00:00+05:30') : 0;
   const emailTime = Math.max(Date.parse(record.workEmailAcceptedAt || '') || 0, Date.parse(record.workOutreachAt || '') || 0);
@@ -37,7 +38,10 @@ function workStatusControl(record, scope = 'clients') {
 }
 
 async function saveWorkRecords(scope) {
-  if (scope === 'clients') await persist(); else await persistSegments();
+  if (scope === 'clients') await persist();
+  else if (scope === 'leads') await persistLeads();
+  else if (scope === 'rghs') await persistRghs();
+  else await persistSegments();
 }
 
 async function changeWorkColor(select) {
@@ -109,11 +113,11 @@ function workCallOccurredAt(date) {
   return date + 'T' + new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Kolkata', hour12: false}) + '+05:30';
 }
 
-async function markWorkOutreach(record) {
+async function markWorkOutreach(record, scope = recordScopeForId(record?.id)) {
   if (!record) return;
   record.workOutreachCompleted = true;
   record.workOutreachAt = new Date().toISOString();
-  await persist();
+  await persistScope(scope);
   renderAll();
 }
 

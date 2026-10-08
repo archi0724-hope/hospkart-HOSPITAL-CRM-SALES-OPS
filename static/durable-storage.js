@@ -1,6 +1,6 @@
 // CRM records use transactional IndexedDB, rather than localStorage's small quota.
 const dashboardStorage = new Map();
-const dashboardKeys = ['hk_v2_clients','hk_v2_calls','hk_v2_feedback','hk_v2_segments','hk_v2_invoice_workbook','hk_v2_backups','hk_v2_reset_revision'];
+const dashboardKeys = ['hk_v2_clients','hk_v2_calls','hk_v2_feedback','hk_v2_segments','hk_v2_rghs','hk_v2_leads','hk_v2_served','hk_v2_doctors','hk_v2_potential','hk_v2_invoice_workbook','hk_v2_backups','hk_v2_reset_revision'];
 let dashboardDatabase;
 let dashboardReady = false;
 let dashboardWriteQueue = Promise.resolve();
@@ -11,6 +11,7 @@ function readableLegacyRecord(key,raw){
     const value=JSON.parse(raw);
     if(key==='hk_v2_invoice_workbook')return validInvoiceSnapshot(value);
     if(key==='hk_v2_segments')return value&&typeof value==='object'&&!Array.isArray(value)&&['served','doctors','potential'].every(section=>value[section]===undefined||validRecordArray(value[section],true));
+    if(['hk_v2_rghs','hk_v2_leads','hk_v2_served','hk_v2_doctors','hk_v2_potential'].includes(key))return validRecordArray(value,true);
     if(key==='hk_v2_backups')return validRecordArray(value)&&value.every(backup=>validRecordArray(backup.clients,true)&&validRecordArray(backup.calls)&&validRecordArray(backup.feedback));
     if(key==='hk_v2_reset_revision')return true;
     return validRecordArray(value,key==='hk_v2_clients');

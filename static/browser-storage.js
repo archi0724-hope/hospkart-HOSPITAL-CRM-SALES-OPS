@@ -16,7 +16,8 @@ function readDashboardValue(key,fallback) {
     if(Array.isArray(fallback)&&!validRecordArray(value,key==='hk_v2_clients'))throw new Error('Invalid saved records');
     if(!Array.isArray(fallback)&&(!value||typeof value!=='object'||Array.isArray(value)))throw new Error('Invalid saved sections');
     if(key==='hk_v2_segments'&&!['served','doctors','potential'].every(section=>value[section]===undefined||validRecordArray(value[section],true)))throw new Error('Invalid section records');
-    if(key==='hk_v2_backups'&&!value.every(backup=>validRecordArray(backup.clients,true)&&validRecordArray(backup.calls)&&validRecordArray(backup.feedback)))throw new Error('Invalid checkpoints');
+    if(['hk_v2_rghs','hk_v2_leads','hk_v2_served','hk_v2_doctors','hk_v2_potential'].includes(key)&&!validRecordArray(value,true))throw new Error('Invalid section records');
+    if(key==='hk_v2_backups'&&!value.every(backup=>validRecordArray(backup.clients,true)&&validRecordArray(backup.calls)&&validRecordArray(backup.feedback)&&(backup.sections===undefined||['rghs','leads','served','doctors','potential'].every(section=>validRecordArray(backup.sections[section]||[],true)))))throw new Error('Invalid checkpoints');
     return value;
   }catch(error){browserStorageNotice('Saved browser data could not be read. Restore a JSON checkpoint in Data & backups. The unreadable data has been kept.');return Array.isArray(fallback)?[]:clone(fallback);}
 }
@@ -32,14 +33,16 @@ function validInvoiceSnapshot(value) {
 function validateCheckpoint(snapshot) {
   if(!snapshot||!validRecordArray(snapshot.clients,true)||!validRecordArray(snapshot.calls)||!validRecordArray(snapshot.feedback))throw new Error('Choose a complete HOSPkart JSON checkpoint.');
   const segments=snapshot.segments||{served:[],doctors:[],potential:[]};
-  if(!['served','doctors','potential'].every(key=>validRecordArray(segments[key],true))||!validInvoiceSnapshot(snapshot.invoiceWorkbook||null))throw new Error('The checkpoint contains invalid imported records.');
-  return {...snapshot,segments,invoiceWorkbook:snapshot.invoiceWorkbook||null};
+  const sections=snapshot.sections||{rghs:snapshot.clients.filter(record=>/rghs/i.test(JSON.stringify(record))).map((record,index)=>({...clone(record),id:'HK-R'+String(index+1).padStart(4,'0')})),leads:snapshot.clients.filter(record=>!['Completed / Served','Lost / Cancelled','Delivered'].includes(record.status)).map((record,index)=>({...clone(record),id:'HK-L'+String(index+1).padStart(4,'0')})),served:segments.served||[],doctors:segments.doctors||[],potential:segments.potential||[]};
+  if(!['served','doctors','potential'].every(key=>validRecordArray(segments[key]||[],true))||!['rghs','leads','served','doctors','potential'].every(key=>validRecordArray(sections[key],true))||!validInvoiceSnapshot(snapshot.invoiceWorkbook||null))throw new Error('The checkpoint contains invalid imported records.');
+  return {...snapshot,segments,sections,invoiceWorkbook:snapshot.invoiceWorkbook||null};
 }
 async function applyDashboardCheckpoint(input,reason) {
   const snapshot=validateCheckpoint(input);
   const nextBackups=reason?[makeDashboardBackup(reason),...backups].slice(0,10):backups;
-  await writeDashboardValues({hk_v2_clients:snapshot.clients,hk_v2_calls:snapshot.calls,hk_v2_feedback:snapshot.feedback,hk_v2_segments:snapshot.segments,hk_v2_invoice_workbook:snapshot.invoiceWorkbook,hk_v2_backups:nextBackups});
-  clients=clone(snapshot.clients);calls=clone(snapshot.calls);feedback=clone(snapshot.feedback);segmentData=clone(snapshot.segments);invoiceWorkbook=clone(snapshot.invoiceWorkbook);backups=nextBackups;
+  const sections=clone(snapshot.sections);
+  await writeDashboardValues({hk_v2_clients:snapshot.clients,hk_v2_calls:snapshot.calls,hk_v2_feedback:snapshot.feedback,hk_v2_segments:{served:sections.served,doctors:sections.doctors,potential:sections.potential},hk_v2_rghs:sections.rghs,hk_v2_leads:sections.leads,hk_v2_served:sections.served,hk_v2_doctors:sections.doctors,hk_v2_potential:sections.potential,hk_v2_invoice_workbook:snapshot.invoiceWorkbook,hk_v2_backups:nextBackups});
+  clients=clone(snapshot.clients);calls=clone(snapshot.calls);feedback=clone(snapshot.feedback);sectionRecords=sections;segmentData={served:sections.served,doctors:sections.doctors,potential:sections.potential};invoiceWorkbook=clone(snapshot.invoiceWorkbook);backups=nextBackups;
   populateFilters();filtered=[...clients];renderAll();
 }
 async function importJsonCheckpoint(input) {

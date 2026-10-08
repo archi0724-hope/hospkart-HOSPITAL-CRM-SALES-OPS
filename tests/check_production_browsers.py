@@ -60,6 +60,22 @@ def check():
                     page.goto(address)
                     page.wait_for_function('dashboardReady && !document.body.inert')
                     assert page.locator('#navClients').inner_text()=='10'
+                    sections=page.evaluate("Array.from(document.querySelectorAll('.workspace-page'),section=>({id:section.id,title:section.querySelector('h2')?.innerText,parent:section.parentElement.id}))")
+                    assert all(section['parent']!='page-dashboard' for section in sections),sections
+                    assert page.evaluate("document.querySelector('#clientRows').closest('.page').id==='page-dashboard'"),'The combined records table must stay on Dashboard'
+                    sections=[{'id':section['id'],'title':section['title']} for section in sections]
+                    assert sections==[{'id':'page-clients','title':'Hospital & Client Business Dashboard'},{'id':'page-rghs','title':'RGHS Data'},{'id':'page-served','title':'Already Served'},{'id':'page-doctors','title':'Doctors'},{'id':'page-potential','title':'HOSPkart Potential Leads'},{'id':'page-leads','title':'Leads & Queries'}],sections
+                    page.evaluate("navigate('served')")
+                    assert page.locator('#page-served').is_visible() and not page.locator('#page-doctors').is_visible() and not page.locator('#page-dashboard').is_visible()
+                    assert page.evaluate("document.querySelectorAll('.page.active').length===1"),'Workspace navigation must activate exactly one page'
+                    page.evaluate("navigate('dashboard')")
+                    rghs=page.evaluate("""async()=>{
+                      const fixture={...originalClients[0],id:'HK-R-fixture',name:'Independent RGHS fixture',sourceData:{Program:'RGHS'}};
+                      const master=JSON.stringify(clients);sectionRecords.rghs.push(fixture);
+                      try{await persistRghs();renderRghsPage();renderDashboard();return {count:document.getElementById('rghsTotal').textContent,shown:document.getElementById('rghsRows').innerText.includes(fixture.name),masterUnchanged:master===JSON.stringify(clients),stored:JSON.parse(dashboardStorage.get('hk_v2_rghs')).some(record=>record.id===fixture.id),overallIncludes:document.getElementById('clientRows').innerText.includes(fixture.name)&&document.getElementById('clientRows').innerText.includes('RGHS Data'),overallCount:Number(document.getElementById('kpiClients').textContent),workspaceCount:workspaceRecords().length}}
+                      finally{sectionRecords.rghs.pop();await persistRghs();renderRghsPage();renderDashboard()}
+                    }""")
+                    assert rghs['count'].endswith('records') and rghs['shown'] and rghs['masterUnchanged'] and rghs['stored'] and rghs['overallIncludes'] and rghs['overallCount']==rghs['workspaceCount'],rghs
                     page.click('button[onclick="loadInvoiceWorkbook(true)"]')
                     page.locator('#toast').get_by_text('No workbook is stored on this server. Use Import Excel to load your file.',exact=True).wait_for()
                     if transfer:
@@ -67,10 +83,12 @@ def check():
                         page.set_input_files('#jsonCheckpointFile',str(transfer))
                         page.locator('#importConfirmAccept').click()
                         page.wait_for_function('invoiceWorkbook?.sheets.length===6')
-                        assert page.evaluate('JSON.stringify({clients,calls,feedback,segmentData,invoiceWorkbook})')==expected_transfer
+                        assert page.evaluate('JSON.stringify({clients,calls,feedback,segmentData,sections:sectionRecords,invoiceWorkbook})')==expected_transfer
                     else:
                         page.set_input_files('#excelImportFile',str(fixture))
                         page.wait_for_function('invoiceWorkbook?.sheets.length===6')
+                    page.evaluate("navigate('dashboard')")
+                    assert page.evaluate("Array.from(document.querySelectorAll('.workspace-page')).every(section=>section.parentElement.id!=='page-dashboard'&&!section.classList.contains('hidden'))"),'Workspaces should remain separate pages when an invoice workbook is loaded'
                     assert page.locator('#invoiceDetailRows tr').count()==3
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert page.locator('#servedTotal').inner_text()=='2'
@@ -113,10 +131,13 @@ def check():
                     page.evaluate("navigate('data')")
                     with page.expect_download() as download:page.click('button[onclick="prepareFullBackup()"]')
                     transfer=root/'transfer.json';download.value.save_as(transfer)
-                    expected_transfer=page.evaluate('JSON.stringify({clients,calls,feedback,segmentData,invoiceWorkbook})')
+                    expected_transfer=page.evaluate('JSON.stringify({clients,calls,feedback,segmentData,sections:sectionRecords,invoiceWorkbook})')
                     page.set_viewport_size({'width':390,'height':844})
                     assert page.locator('#mobileView').is_visible()
-                    page.select_option('#mobileView','served');assert page.locator('#page-served').is_visible()
+                    page.select_option('#mobileView','served')
+                    page.wait_for_function("currentView==='served' && document.getElementById('page-served').classList.contains('active')")
+                    served_state=page.locator('#page-served').evaluate("element=>({display:getComputedStyle(element).display,visibility:getComputedStyle(element).visibility,height:element.getBoundingClientRect().height,dashboardDisplay:getComputedStyle(document.getElementById('page-dashboard')).display})")
+                    assert served_state['display']!='none' and served_state['visibility']=='visible' and served_state['height']>0 and served_state['dashboardDisplay']=='none',served_state
                     page.select_option('#mobileView','data');assert page.locator('#page-data').is_visible()
                     assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
                     row=page.locator('#importRemovalRows tr').filter(has=page.locator('td').get_by_text('Categorized Items',exact=True))
@@ -125,24 +146,25 @@ def check():
                     page.wait_for_function('invoiceWorkbook.sheets.length===5')
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert not errors,errors
+                    base_record=page.evaluate('originalClients[1]')
                     context.close()
                     # Reproduce the screenshot: 1,743 existing clients and a full
                     # legacy localStorage must migrate without dropping history.
-                    large=browser.new_context();p=large.new_page();p.goto(address)
-                    p.wait_for_function('dashboardReady && !document.body.inert')
-                    seed=p.evaluate("""()=>{
-                      const records=Array.from({length:1743},(_,i)=>({...originalClients[0],id:'legacy-'+i,name:'Existing Hospital '+i,sourceData:{originalColumn:'preserved-'+i,details:'x'.repeat(200)}}));
-                      const note={clientId:'legacy-0',date:'2026-09-01',purpose:'Existing call',connected:'Yes',notes:'Must survive migration'};
-                      const savedFeedback={clientId:'legacy-0',date:'2026-09-01',rating:'5',text:'Existing feedback'};
-                      const segments={served:[],doctors:[{...originalClients[0],id:'old-doctor',name:'Existing Doctor'}],potential:[]};
-                      const checkpoint={id:'legacy-backup',createdAt:new Date().toISOString(),reason:'Existing checkpoint',clients:records,calls:[note],feedback:[savedFeedback],segments,invoiceWorkbook:null};
-                      const data={hk_v2_clients:records,hk_v2_calls:[note],hk_v2_feedback:[savedFeedback],hk_v2_segments:segments,hk_v2_backups:[checkpoint]};
+                    large=browser.new_context();large.add_init_script(f"""(() => {{
+                      const base={json.dumps(base_record)};
+                      const records=Array.from({{length:1743}},(_,i)=>({{...base,id:'legacy-'+i,name:'Existing Hospital '+i,sourceData:{{originalColumn:'preserved-'+i,details:'x'.repeat(200)}}}}));
+                      records[0].sourceData.Program='RGHS';
+                      const note={{clientId:'legacy-0',date:'2026-09-01',purpose:'Existing call',connected:'Yes',notes:'Must survive migration'}};
+                      const savedFeedback={{clientId:'legacy-0',date:'2026-09-01',rating:'5',text:'Existing feedback'}};
+                      const segments={{served:[],doctors:[{{...base,id:'old-doctor',name:'Existing Doctor'}}],potential:[]}};
+                      const checkpoint={{id:'legacy-backup',createdAt:new Date().toISOString(),reason:'Existing checkpoint',clients:records,calls:[note],feedback:[savedFeedback],segments,invoiceWorkbook:null}};
+                      const data={{hk_v2_clients:records,hk_v2_calls:[note],hk_v2_feedback:[savedFeedback],hk_v2_segments:segments,hk_v2_backups:[checkpoint]}};
                       Object.entries(data).forEach(([key,value])=>localStorage.setItem(key,JSON.stringify(value)));
-                      let chunks=0;try{while(chunks<100){localStorage.setItem('unrelated-'+chunks,'z'.repeat(100000));chunks++;}}catch(error){if(error.name!=='QuotaExceededError')throw error;}
-                      return {records:JSON.stringify(records),calls:JSON.stringify([note]),feedback:JSON.stringify([savedFeedback]),chunks};
-                    }""")
+                      let chunks=0;try{{while(chunks<100){{localStorage.setItem('unrelated-'+chunks,'z'.repeat(100000));chunks++;}}}}catch(error){{if(error.name!=='QuotaExceededError')throw error;}}
+                    }})()""")
+                    p=large.new_page();p.goto(address);p.wait_for_function('dashboardReady && !document.body.inert')
+                    seed=p.evaluate("""()=>({records:JSON.stringify(clients),calls:JSON.stringify(calls),feedback:JSON.stringify(feedback),chunks:Array.from({length:100},(_,i)=>localStorage.getItem('unrelated-'+i)).filter(Boolean).length})""")
                     assert seed['chunks']>0
-                    p.reload();p.wait_for_function('dashboardReady && !document.body.inert')
                     assert p.locator('#navClients').inner_text()=='1743'
                     assert p.evaluate('JSON.stringify(clients)')==seed['records']
                     assert p.evaluate("localStorage.getItem('hk_v2_clients')") is None
@@ -153,18 +175,29 @@ def check():
                     assert p.evaluate('JSON.stringify(calls)')==seed['calls']
                     assert p.evaluate('JSON.stringify(feedback)')==seed['feedback']
                     assert p.evaluate('segmentData.doctors.length')==1
+                    assert p.evaluate("sectionRecords.doctors.length===1 && JSON.parse(dashboardStorage.get('hk_v2_doctors')).length===1")
+                    assert p.evaluate("sectionRecords.leads.every(record=>record.id.startsWith('HK-L')) && sectionRecords.leads.length===1743")
+                    separation=p.evaluate("""async()=>{
+                      const clientRemark=clients[0].remark,lead=sectionRecords.leads[0],rghs=sectionRecords.rghs[0];
+                      lead.remark='Independent lead edit';rghs.remark='Independent RGHS edit';
+                      await Promise.all([persistLeads(),persistRghs()]);
+                      return {masterUnchanged:clients[0].remark===clientRemark,leadStored:JSON.parse(dashboardStorage.get('hk_v2_leads'))[0].remark,rghsStored:JSON.parse(dashboardStorage.get('hk_v2_rghs'))[0].remark,rghsId:rghs.id};
+                    }""")
+                    assert separation=={'masterUnchanged':True,'leadStored':'Independent lead edit','rghsStored':'Independent RGHS edit','rghsId':'HK-R0001'},separation
+                    assert p.evaluate("JSON.stringify(clients)===JSON.stringify(JSON.parse(dashboardStorage.get('hk_v2_clients')))")
                     assert p.evaluate('backups[0].clients.length')==1743
                     p.reload();p.wait_for_function('invoiceWorkbook?.sheets.length===6')
                     assert p.evaluate('clients.length')==1745
                     assert p.evaluate('segmentData.served.length')==2
+                    assert p.evaluate("sectionRecords.leads[0].remark==='Independent lead edit' && sectionRecords.rghs[0].remark==='Independent RGHS edit' && clients[0].remark!=='Independent lead edit'")
                     # A second tab sees committed changes, rather than overwriting
                     # the first tab with an obsolete dataset after a reset.
                     peer=large.new_page();peer.goto(address);peer.wait_for_function('dashboardReady && !document.body.inert')
                     p.evaluate("navigate('data')")
                     p.check('#resetAcknowledge');p.fill('#resetPhrase','RESET DASHBOARD')
                     p.click('#resetConfirmButton')
-                    p.wait_for_function('!dashboardResetting && clients.length===0 && invoiceWorkbook===null')
-                    peer.wait_for_function('dashboardReady && clients.length===0 && invoiceWorkbook===null')
+                    p.wait_for_function('!dashboardResetting && clients.length===0 && invoiceWorkbook===null && Object.values(sectionRecords).every(records=>records.length===0)')
+                    peer.wait_for_function('dashboardReady && clients.length===0 && invoiceWorkbook===null && Object.values(sectionRecords).every(records=>records.length===0)')
                     large.close()
                     failed_migration=browser.new_context()
                     failed_migration.add_init_script("""

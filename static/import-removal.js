@@ -1,6 +1,6 @@
 let pendingImportRemoval = null;
 let importRemovalSubmitting = false;
-const importSectionTitles = {served:'Already Served', doctors:'Doctors', potential:'Potential Leads'};
+const importSectionTitles = {rghs:'RGHS Data', served:'Already Served', doctors:'Doctors', potential:'Potential Leads'};
 
 function renderImportRemoval() {
   const body = document.getElementById('importRemovalRows'); if (!body) return;
@@ -9,7 +9,7 @@ function renderImportRemoval() {
     targets.push({scope:'workbook',name:invoiceWorkbook.filename || 'Imported workbook',label:invoiceWorkbook.filename || 'Imported workbook',count:invoiceWorkbook.sheets.reduce((sum,sheet)=>sum+sheet.rows.length,0)});
     invoiceWorkbook.sheets.forEach(sheet => targets.push({scope:'worksheet',name:sheet.name,label:sheet.name,count:sheet.rows.length}));
   }
-  Object.entries(importSectionTitles).forEach(([name,label])=>{if(segmentData[name]?.length)targets.push({scope:'segment',name,label,count:segmentData[name].length});});
+  Object.entries(importSectionTitles).forEach(([name,label])=>{if(sectionRecords[name]?.length)targets.push({scope:'segment',name,label,count:sectionRecords[name].length});});
   body.replaceChildren();
   targets.forEach(target => {
     const row = document.createElement('tr');
@@ -41,18 +41,20 @@ async function removeSelectedImport(event) {
     const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Removal was not authorized.');
     if(result.authorized_scope!==target.scope||result.authorized_name!==target.name)throw new Error('Removal scope did not match.');
     if(dashboardResetting||target.version!==dashboardDataVersion||target.workbook!==invoiceWorkbook)throw new Error('Dashboard data changed. Select the import again.');
-    const updatedWorkbook=clone(invoiceWorkbook), updatedSegments=clone(segmentData);
+    const updatedWorkbook=clone(invoiceWorkbook), updatedSections=clone(sectionRecords);
     let nextWorkbook=updatedWorkbook;
     if(target.scope==='worksheet') {
       if(!updatedWorkbook?.sheets.some(sheet=>sheet.name===target.name))throw new Error('That worksheet is no longer available.');
       updatedWorkbook.sheets=updatedWorkbook.sheets.filter(sheet=>sheet.name!==target.name);
       if(updatedWorkbook.sheet_previews)delete updatedWorkbook.sheet_previews[target.name];
     } else if(target.scope==='workbook')nextWorkbook=null;
-    else updatedSegments[target.name]=[];
+    else updatedSections[target.name]=[];
     const nextBackups=[makeDashboardBackup('Before removing '+target.label),...backups].slice(0,10);
-    await writeDashboardValues({hk_v2_invoice_workbook:nextWorkbook,hk_v2_segments:updatedSegments,hk_v2_backups:nextBackups});
+    const values={hk_v2_invoice_workbook:nextWorkbook,hk_v2_segments:{served:updatedSections.served,doctors:updatedSections.doctors,potential:updatedSections.potential},hk_v2_backups:nextBackups};
+    if(target.scope==='segment')values['hk_v2_'+target.name]=updatedSections[target.name];
+    await writeDashboardValues(values);
     backups=nextBackups;
-    invoiceWorkbook=nextWorkbook;segmentData=updatedSegments;dashboardDataVersion++;
+    invoiceWorkbook=nextWorkbook;sectionRecords=updatedSections;segmentData={served:updatedSections.served,doctors:updatedSections.doctors,potential:updatedSections.potential};dashboardDataVersion++;
     importRemovalSubmitting=false;closeImportRemoval();renderAll();renderImportRemoval();
     toast(target.label+' removed. Other imports and saved client history are kept. A backup is available.');
   } catch(failure){error.textContent=failure.message;}

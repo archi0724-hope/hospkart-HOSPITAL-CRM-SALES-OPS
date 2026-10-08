@@ -23,13 +23,14 @@ async function performDashboardReset() {
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || 'Could not clear server history.');
-    await writeDashboardValues({hk_v2_clients:[],hk_v2_calls:[],hk_v2_feedback:[],hk_v2_backups:[],hk_v2_segments:{served:[],doctors:[],potential:[]},hk_v2_invoice_workbook:null,hk_v2_reset_revision:String(Date.now())});
+    await writeDashboardValues({hk_v2_clients:[],hk_v2_calls:[],hk_v2_feedback:[],hk_v2_backups:[],hk_v2_segments:{served:[],doctors:[],potential:[]},hk_v2_rghs:[],hk_v2_leads:[],hk_v2_served:[],hk_v2_doctors:[],hk_v2_potential:[],hk_v2_invoice_workbook:null,hk_v2_reset_revision:String(Date.now())});
     invoiceWorkbook=null;renderInvoiceDashboard();
     clients = [];
     calls = [];
     feedback = [];
     backups = [];
     segmentData = {served: [], doctors: [], potential: []};
+    sectionRecords = {rghs: [], leads: [], served: [], doctors: [], potential: []};
     filtered = [];
     quickMode = 'all';
     editingCallIndex = -1;

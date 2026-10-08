@@ -21,7 +21,7 @@ async function installInvoiceWorkbook(workbook, filename, backup = true) {
   const snapshot = {...workbook, filename};
   if(!validInvoiceSnapshot(snapshot))throw new Error('The workbook contains invalid worksheets. Import the Excel file again.');
   const served=invoiceClientRecords(snapshot),merged=mergeImportedClients(clone(served));
-  await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},invoiceWorkbook:snapshot},backup?'Before invoice workbook import':'');
+  await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},sections:{...sectionRecords,served},invoiceWorkbook:snapshot},backup?'Before invoice workbook import':'');
 }
 async function loadInvoiceWorkbook(force = false) {
   const version = dashboardDataVersion;
@@ -42,15 +42,15 @@ async function loadInvoiceWorkbook(force = false) {
 }
 function invoiceBarChart(rows, field, amountField, title) {
   const groups = new Map(); rows.forEach(row => { const key = String(row[field] || 'Unspecified'); groups.set(key, (groups.get(key) || 0) + (invoiceNumber(row[amountField]) || 0)); });
-  const sorted = [...groups].sort((a,b) => field === 'month' ? a[0].localeCompare(b[0]) : b[1]-a[1]), maximum = Math.max(1,...sorted.map(entry => entry[1]));
-  return `<div class="card"><div class="card-head"><h2>${escapeHtml(title)}</h2></div><div class="card-body invoice-bars">${sorted.length ? sorted.map(([label,value]) => `<div><div class="invoice-bar-label"><span>${escapeHtml(label)}</span><strong>${money(value)}</strong></div><div class="invoice-bar-track"><div style="width:${Math.max(0,value/maximum*100)}%"></div></div></div>`).join('') : '<p>No matching values.</p>'}</div></div>`;
+  const sorted = [...groups].sort((a,b) => field === 'month' ? a[0].localeCompare(b[0]) : b[1]-a[1]);
+  return `<div class="card"><div class="card-head"><h2>${escapeHtml(title)}</h2></div><div class="card-body invoice-bars">${sorted.length ? sorted.map(([label,value]) => `<div><div class="invoice-bar-label"><span>${escapeHtml(label)}</span><strong>${money(value)}</strong></div></div>`).join('') : '<p>No matching values.</p>'}</div></div>`;
 }
 function renderInvoiceDashboard() {
   if(typeof renderImportRemoval==='function')renderImportRemoval();
   const panel = document.getElementById('invoiceDashboard'); if (!panel) return;
   panel.classList.toggle('hidden', !invoiceWorkbook);
   const demo = document.getElementById('demoDisclosure'); if(demo) demo.classList.toggle('hidden', !!invoiceWorkbook);
-  document.querySelectorAll('#page-dashboard > :not(#invoiceDashboard)').forEach(node => node.classList.toggle('hidden', !!invoiceWorkbook));
+  document.querySelectorAll('#page-dashboard > :not(#invoiceDashboard):not(.dashboard-section)').forEach(node => node.classList.toggle('hidden', !!invoiceWorkbook));
   if (!invoiceWorkbook) return;
   const sheetSelect=document.getElementById('invoiceDetailSheet'),selected=sheetSelect.value;
   sheetSelect.replaceChildren();

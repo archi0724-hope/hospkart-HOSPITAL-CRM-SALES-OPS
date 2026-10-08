@@ -44,6 +44,13 @@ class ImportRemovalAuthorizationTests(unittest.TestCase):
         self.assertEqual(response.json, {'ok': True, 'authorized_scope': 'worksheet', 'authorized_name': 'Categorized Items'})
         self.assertNotIn('password', str(response.json))
 
+    def test_rghs_section_removal_is_supported(self):
+        self.configure()
+        payload = {**self.payload, 'scope': 'segment', 'name': 'rghs', 'confirmation': 'REMOVE rghs'}
+        response = self.client.post('/api/admin/remove-import', json=payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {'ok': True, 'authorized_scope': 'segment', 'authorized_name': 'rghs'})
+
     def test_confirmation_and_scope_are_required(self):
         self.configure()
         for updates in [{'confirmation': 'REMOVE EVERYTHING'}, {'scope': 'dashboard'}, {'name': ''}, {'scope': 'segment', 'name': 'unknown'}]:

@@ -158,7 +158,7 @@ def authorize_import_removal():
     scope, name = body.get("scope"), body.get("name")
     if scope not in {"worksheet", "workbook", "segment"} or not isinstance(name, str) or not name.strip() or len(name) > 255:
         return jsonify({"ok": False, "error": "Choose one imported worksheet, workbook, or section."}), 400
-    if scope == "segment" and name not in {"served", "doctors", "potential"}:
+    if scope == "segment" and name not in {"rghs", "served", "doctors", "potential"}:
         return jsonify({"ok": False, "error": "Unknown imported section."}), 400
     if body.get("confirmation") != "REMOVE " + name:
         return jsonify({"ok": False, "error": "Type the exact removal confirmation."}), 400
