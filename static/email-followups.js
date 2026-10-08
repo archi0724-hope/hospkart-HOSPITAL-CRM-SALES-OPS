@@ -165,7 +165,7 @@ async function loadEmailHistory() {
   try {
     const result = await emailApi('/api/email/followups');
     if (dashboardResetting || version !== dashboardDataVersion) return;
-    syncEmailWorkStatus(result.items);
+    await syncEmailWorkStatus(result.items);
     document.getElementById('emailHistorySummary').textContent = (Object.entries(result.counts).map(([status, count]) => `${count} ${status}`).join(' · ') || 'No email follow-ups yet.') + ' — Accepted means the email server accepted the message; delivery is not confirmed. Showing the latest 200.';
     rows.innerHTML = result.items.length ? result.items.map(job => `<tr><td>${escapeHtml(job.client_name || '—')}</td><td>${escapeHtml(job.email)}</td><td>${escapeHtml(job.subject)}</td><td>${escapeHtml(new Date(job.scheduled_at).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'}))}</td><td>${escapeHtml(job.status)}</td><td>${escapeHtml(job.last_error || (job.status === 'sending' ? 'If the server restarted, check the sender outbox before scheduling again.' : '—'))}</td><td>${job.status === 'pending' ? `<button class="action-link" onclick="cancelEmailFollowup(${job.id})">Cancel</button>` : '—'}</td></tr>`).join('') : '<tr><td colspan="7" class="empty-state">No email follow-ups yet.</td></tr>';
   } catch (error) {

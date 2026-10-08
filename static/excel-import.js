@@ -132,7 +132,7 @@ async function excelClientSheets(file) {
   const workbook = await readExcelWorkbook(file);
   if (dashboardResetting || version !== dashboardDataVersion) return null;
   if (isInvoiceWorkbook(workbook)) {
-    installInvoiceWorkbook(workbook, file.name);
+    await installInvoiceWorkbook(workbook, file.name);
     navigate('dashboard');
     toast('Invoice workbook imported. All six worksheets are available on the dashboard.');
     return null;

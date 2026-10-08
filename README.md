@@ -4,7 +4,7 @@ To remove one imported worksheet without resetting the dashboard, open **Data & 
 
 Configure the admin password on this computer by double-clicking `set_admin_password.bat` (or running `.venv/Scripts/python.exe set_admin_password.py` from this directory). The password must have at least 12 characters; only its hash is saved in the ignored file `data/admin_password.hash`. Changing an existing password requires the current password. Alternatively, administrators can configure `ADMIN_PASSWORD_HASH` in the private environment. Removal is disabled until a password is configured, and the server checks the password for each removal request.
 
-This local app stores imported data and checkpoints in browser localStorage. The password protects the dashboard's removal controls, not direct access to browser storage or operating-system files. Removal affects the current browser's imported copy. The original workbook remains available for deliberate re-import.
+This local app stores imported data and checkpoints in browser IndexedDB. The password protects the dashboard's removal controls, not direct access to browser storage or operating-system files. Removal affects the current browser's imported copy. The original workbook remains available for deliberate re-import.
 
 VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with:
 
@@ -101,7 +101,7 @@ Open **Leads & Queries**. Each stage has **+ Add record** to enter a hospital di
 
 Enter the hospital and contact details, requirement, quotation value, follow-up date, and remark, then click **Save record**. Use **Edit record** on a saved card to change its details. Changing **Status** moves that record to the corresponding stage and updates the counts. **Move existing** lets you assign an existing hospital to a stage.
 
-CRM records are saved in the current browser's localStorage and remain after refresh. Use **Data & backups** to download a checkpoint before changing browsers or clearing browser storage. SmartBot and WhatsApp API features require the Python server.
+CRM records are saved in the current browser's IndexedDB and remain after refresh. Existing localStorage records automatically migrate on the same site address: the app copies and verifies them before removing their old copies. Unreadable records and unrelated site data are kept. Imports and their safety checkpoints save in one transaction, so a failed write preserves the previous state. IndexedDB avoids localStorage's small quota; the browser's available disk space still applies. Keep using the same address (`localhost` and `127.0.0.1` have separate browser storage). Use **Data & backups** to download a checkpoint before changing browsers or clearing browser storage. JSON downloads work even if saving a browser checkpoint fails. SmartBot and WhatsApp API features require the Python server.
 
 Chrome, Edge, and different site addresses have separate saved data. To transfer everything, click **Prepare full data backup** in the original browser, then **Restore JSON checkpoint** in the new browser. This transfers clients, calls, feedback, imported sections, and every invoice worksheet. Storage that is blocked or unreadable is reported on the page; unreadable saved values are retained for recovery. Recent backup retention adapts to browser storage limits. Imports and checkpoint restores roll back if saving fails.
 
@@ -204,7 +204,7 @@ Verification: install `requirements-dev.txt`, then run `python -m unittest disco
 
 Before using this as your live HOSPkart CRM:
 
-1. Move hospital/client master data from browser `localStorage` into the server database.
+1. Move hospital/client master data from browser IndexedDB into the server database when shared access across users or devices is needed.
 2. Add user login and role permissions for calling executives vs managers.
 3. Encrypt or restrict access to contact information and API credentials.
 4. Keep an explicit WhatsApp opt-in field and opt-out status for every hospital/contact.

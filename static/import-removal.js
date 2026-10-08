@@ -49,15 +49,9 @@ async function removeSelectedImport(event) {
       if(updatedWorkbook.sheet_previews)delete updatedWorkbook.sheet_previews[target.name];
     } else if(target.scope==='workbook')nextWorkbook=null;
     else updatedSegments[target.name]=[];
-    // A removal is transactional across the browser keys, including its backup.
-    const keys=['hk_v2_invoice_workbook','hk_v2_segments','hk_v2_backups'], previous=new Map(keys.map(key=>[key,localStorage.getItem(key)])), oldBackups=backups;
-    try {
-      createBackup('Before removing '+target.label);
-      localStorage.setItem('hk_v2_invoice_workbook',JSON.stringify(nextWorkbook));
-      localStorage.setItem('hk_v2_segments',JSON.stringify(updatedSegments));
-    } catch(failure) {
-      previous.forEach((value,key)=>{if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);});backups=oldBackups;throw failure;
-    }
+    const nextBackups=[makeDashboardBackup('Before removing '+target.label),...backups].slice(0,10);
+    await writeDashboardValues({hk_v2_invoice_workbook:nextWorkbook,hk_v2_segments:updatedSegments,hk_v2_backups:nextBackups});
+    backups=nextBackups;
     invoiceWorkbook=nextWorkbook;segmentData=updatedSegments;dashboardDataVersion++;
     importRemovalSubmitting=false;closeImportRemoval();renderAll();renderImportRemoval();
     toast(target.label+' removed. Other imports and saved client history are kept. A backup is available.');

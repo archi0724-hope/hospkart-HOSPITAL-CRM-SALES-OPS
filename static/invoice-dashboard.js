@@ -17,27 +17,27 @@ function invoiceClientRecords(workbook) {
     return {id: `HK-S${String(index+1).padStart(4,'0')}`, name: String(row['Client / Hospital']), city: String(row['Delivery City / Location'] || ''), district: '', state: '', type: invoices.length > 1 ? 'Repeat Client' : 'Previously Served Client', contact: '', mobile: String(invoices.find(entry => entry['Client Phone'])?.['Client Phone'] || ''), email: '', requirement: String(row['Next Requirement'] || ''), product: [...new Set(invoices.map(entry => entry['Items Purchased']).filter(Boolean))].join('; '), status: 'Feedback Pending', quote: 0, order: total, last: '', next: invoiceDate(row['Follow-up Date']), executive: '', remark: String(row['Notes'] || ''), priority: 'Medium', sourceData: {...row, 'Invoice count': invoices.length, 'Invoice numbers': invoices.map(entry => entry['Invoice No.']).join('; '), 'Recorded invoice value (₹)': total}, sourceInvoices: clone(invoices)};
   });
 }
-function installInvoiceWorkbook(workbook, filename, backup = true) {
+async function installInvoiceWorkbook(workbook, filename, backup = true) {
   const snapshot = {...workbook, filename};
   if(!validInvoiceSnapshot(snapshot))throw new Error('The workbook contains invalid worksheets. Import the Excel file again.');
   const served=invoiceClientRecords(snapshot),merged=mergeImportedClients(clone(served));
-  applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},invoiceWorkbook:snapshot},backup?'Before invoice workbook import':'');
+  await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},invoiceWorkbook:snapshot},backup?'Before invoice workbook import':'');
 }
 async function loadInvoiceWorkbook(force = false) {
   const version = dashboardDataVersion;
   try {
-    const saved = localStorage.getItem('hk_v2_invoice_workbook');
+    const saved = (dashboardStorage.get('hk_v2_invoice_workbook')??null);
     if (!force && saved !== null) {
       const snapshot=JSON.parse(saved);
       if(!validInvoiceSnapshot(snapshot))throw new Error('Saved invoice data is unreadable. Restore a JSON checkpoint or import the Excel file again.');
       invoiceWorkbook=snapshot;renderInvoiceDashboard();return;
     }
-    if (!force && localStorage.getItem('hk_v2_reset_revision')) return;
+    if (!force && dashboardStorage.get('hk_v2_reset_revision')) return;
     if(!force&&browserStorageProblem)return;
     const response = await fetch('/api/invoice-workbook'); const result = await response.json();
     if(dashboardResetting||version!==dashboardDataVersion)return;
     if(!response.ok||!result.ok){if(force)toast('No workbook is stored on this server. Use Import Excel to load your file.');return;}
-    if (isInvoiceWorkbook(result.workbook)) { installInvoiceWorkbook(result.workbook, result.filename); if(force) navigate('dashboard'); }
+    if (isInvoiceWorkbook(result.workbook)) { await installInvoiceWorkbook(result.workbook, result.filename); if(force) navigate('dashboard'); }
   } catch (error) { browserStorageNotice('Invoice workbook could not load: '+error.message);toast('Invoice workbook could not load: ' + error.message); }
 }
 function invoiceBarChart(rows, field, amountField, title) {

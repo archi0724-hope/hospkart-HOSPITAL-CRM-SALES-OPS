@@ -23,13 +23,8 @@ async function performDashboardReset() {
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || 'Could not clear server history.');
-    // Empty arrays must remain stored so refresh does not restore the demo records.
-    for (const key of ['hk_v2_clients', 'hk_v2_calls', 'hk_v2_feedback', 'hk_v2_backups']) localStorage.setItem(key, '[]');
-    localStorage.setItem('hk_v2_segments', JSON.stringify({served: [], doctors: [], potential: []}));
-    localStorage.setItem('hk_v2_invoice_workbook', 'null');
-    invoiceWorkbook = null;
-    renderInvoiceDashboard();
-    localStorage.setItem('hk_v2_reset_revision', String(Date.now()));
+    await writeDashboardValues({hk_v2_clients:[],hk_v2_calls:[],hk_v2_feedback:[],hk_v2_backups:[],hk_v2_segments:{served:[],doctors:[],potential:[]},hk_v2_invoice_workbook:null,hk_v2_reset_revision:String(Date.now())});
+    invoiceWorkbook=null;renderInvoiceDashboard();
     clients = [];
     calls = [];
     feedback = [];

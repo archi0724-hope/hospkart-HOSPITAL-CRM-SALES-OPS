@@ -58,6 +58,7 @@ def check():
                     page=context.new_page();errors=[]
                     page.on('pageerror',lambda error:errors.append(str(error)))
                     page.goto(address)
+                    page.wait_for_function('dashboardReady && !document.body.inert')
                     assert page.locator('#navClients').inner_text()=='10'
                     page.click('button[onclick="loadInvoiceWorkbook(true)"]')
                     page.locator('#toast').get_by_text('No workbook is stored on this server. Use Import Excel to load your file.',exact=True).wait_for()
@@ -74,20 +75,41 @@ def check():
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert page.locator('#servedTotal').inner_text()=='2'
                     for _ in range(20):page.evaluate('installInvoiceWorkbook(invoiceWorkbook,invoiceWorkbook.filename)')
-                    assert 1<=page.evaluate('backups.length')<10, 'Large workbook fixture should exercise backup quota retention'
+                    assert page.evaluate('backups.length')==10, 'IndexedDB retains all ten checkpoints beyond the localStorage quota'
                     page.reload();page.wait_for_function('invoiceWorkbook?.sheets.length===6')
                     assert page.locator('#invoiceDetailRows tr').count()==3
                     # A write failure must roll back active data and its checkpoint.
-                    rollback=page.evaluate("""()=>{
+                    rollback=page.evaluate("""async()=>{
                       const keys=['hk_v2_clients','hk_v2_calls','hk_v2_feedback','hk_v2_segments','hk_v2_invoice_workbook','hk_v2_backups'];
-                      const before=JSON.stringify(keys.map(key=>localStorage.getItem(key)));
+                      const before=JSON.stringify(keys.map(key=>dashboardStorage.get(key)));
                       const beforeState=JSON.stringify({clients,calls,feedback,segmentData,invoiceWorkbook,backups});
-                      const original=Storage.prototype.setItem;let failed=false,message='';
-                      Storage.prototype.setItem=function(key,value){if(key==='hk_v2_segments'&&!failed){failed=true;throw new DOMException('Test quota','QuotaExceededError')}return original.call(this,key,value)};
-                      try{installInvoiceWorkbook(invoiceWorkbook,'failed-import.xlsx')}catch(error){message=error.message}finally{Storage.prototype.setItem=original}
-                      return {message,same:before===JSON.stringify(keys.map(key=>localStorage.getItem(key))),sameState:beforeState===JSON.stringify({clients,calls,feedback,segmentData,invoiceWorkbook,backups})};
+                      const original=IDBObjectStore.prototype.put;let failed=false,message='';
+                      IDBObjectStore.prototype.put=function(value,key){if(key==='hk_v2_segments'&&!failed){failed=true;throw new DOMException('Test quota','QuotaExceededError')}return original.call(this,value,key)};
+                      try{await installInvoiceWorkbook(invoiceWorkbook,'failed-import.xlsx')}catch(error){message=error.message}finally{IDBObjectStore.prototype.put=original}
+                      const stored=await databaseRecords();
+                      return {message,same:before===JSON.stringify(keys.map(key=>dashboardStorage.get(key))),sameDisk:before===JSON.stringify(keys.map(key=>stored.get(key))),sameState:beforeState===JSON.stringify({clients,calls,feedback,segmentData,invoiceWorkbook,backups})};
                     }""")
-                    assert rollback['same'] and rollback['sameState'] and 'storage is full' in rollback['message'],rollback
+                    assert rollback['same'] and rollback['sameDisk'] and rollback['sameState'] and rollback['message'],rollback
+                    # A normal form waits for durability, and a failed form does
+                    # not leave an unsaved edit in memory or report success.
+                    page.evaluate("""async()=>{
+                      openWorkStatusEditor(clients[0].id);
+                      document.getElementById('workRecordRemark').value='Persisted work remark';
+                      await saveWorkStatus({preventDefault(){}});
+                    }""")
+                    assert page.evaluate('clients[0].remark')=='Persisted work remark'
+                    failed_form=page.evaluate("""async()=>{
+                      const before=JSON.stringify(clients),original=IDBObjectStore.prototype.put;
+                      openWorkStatusEditor(clients[0].id);
+                      document.getElementById('workRecordRemark').value='Must not be saved';
+                      IDBObjectStore.prototype.put=function(){throw new DOMException('Form save failed','QuotaExceededError')};
+                      try{await saveWorkStatus({preventDefault(){}})}finally{IDBObjectStore.prototype.put=original;closeDrawer('workStatusDrawer')}
+                      return before===JSON.stringify(clients);
+                    }""")
+                    assert failed_form
+                    assert 'Changes were not saved' in page.locator('#toast').inner_text()
+                    page.reload();page.wait_for_function('invoiceWorkbook?.sheets.length===6')
+                    assert page.evaluate('clients[0].remark')=='Persisted work remark'
                     page.evaluate("navigate('data')")
                     with page.expect_download() as download:page.click('button[onclick="prepareFullBackup()"]')
                     transfer=root/'transfer.json';download.value.save_as(transfer)
@@ -104,6 +126,63 @@ def check():
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert not errors,errors
                     context.close()
+                    # Reproduce the screenshot: 1,743 existing clients and a full
+                    # legacy localStorage must migrate without dropping history.
+                    large=browser.new_context();p=large.new_page();p.goto(address)
+                    p.wait_for_function('dashboardReady && !document.body.inert')
+                    seed=p.evaluate("""()=>{
+                      const records=Array.from({length:1743},(_,i)=>({...originalClients[0],id:'legacy-'+i,name:'Existing Hospital '+i,sourceData:{originalColumn:'preserved-'+i,details:'x'.repeat(200)}}));
+                      const note={clientId:'legacy-0',date:'2026-09-01',purpose:'Existing call',connected:'Yes',notes:'Must survive migration'};
+                      const savedFeedback={clientId:'legacy-0',date:'2026-09-01',rating:'5',text:'Existing feedback'};
+                      const segments={served:[],doctors:[{...originalClients[0],id:'old-doctor',name:'Existing Doctor'}],potential:[]};
+                      const checkpoint={id:'legacy-backup',createdAt:new Date().toISOString(),reason:'Existing checkpoint',clients:records,calls:[note],feedback:[savedFeedback],segments,invoiceWorkbook:null};
+                      const data={hk_v2_clients:records,hk_v2_calls:[note],hk_v2_feedback:[savedFeedback],hk_v2_segments:segments,hk_v2_backups:[checkpoint]};
+                      Object.entries(data).forEach(([key,value])=>localStorage.setItem(key,JSON.stringify(value)));
+                      let chunks=0;try{while(chunks<100){localStorage.setItem('unrelated-'+chunks,'z'.repeat(100000));chunks++;}}catch(error){if(error.name!=='QuotaExceededError')throw error;}
+                      return {records:JSON.stringify(records),calls:JSON.stringify([note]),feedback:JSON.stringify([savedFeedback]),chunks};
+                    }""")
+                    assert seed['chunks']>0
+                    p.reload();p.wait_for_function('dashboardReady && !document.body.inert')
+                    assert p.locator('#navClients').inner_text()=='1743'
+                    assert p.evaluate('JSON.stringify(clients)')==seed['records']
+                    assert p.evaluate("localStorage.getItem('hk_v2_clients')") is None
+                    assert p.evaluate("localStorage.getItem('unrelated-0')")=='z'*100000
+                    p.set_input_files('#excelImportFile',str(fixture));p.wait_for_function('segmentData.served.length===2')
+                    assert p.evaluate('clients.length')==1745
+                    assert p.evaluate("JSON.stringify(clients.filter(client=>client.id.startsWith('legacy-')))")==seed['records']
+                    assert p.evaluate('JSON.stringify(calls)')==seed['calls']
+                    assert p.evaluate('JSON.stringify(feedback)')==seed['feedback']
+                    assert p.evaluate('segmentData.doctors.length')==1
+                    assert p.evaluate('backups[0].clients.length')==1743
+                    p.reload();p.wait_for_function('invoiceWorkbook?.sheets.length===6')
+                    assert p.evaluate('clients.length')==1745
+                    assert p.evaluate('segmentData.served.length')==2
+                    # A second tab sees committed changes, rather than overwriting
+                    # the first tab with an obsolete dataset after a reset.
+                    peer=large.new_page();peer.goto(address);peer.wait_for_function('dashboardReady && !document.body.inert')
+                    p.evaluate("navigate('data')")
+                    p.check('#resetAcknowledge');p.fill('#resetPhrase','RESET DASHBOARD')
+                    p.click('#resetConfirmButton')
+                    p.wait_for_function('!dashboardResetting && clients.length===0 && invoiceWorkbook===null')
+                    peer.wait_for_function('dashboardReady && clients.length===0 && invoiceWorkbook===null')
+                    large.close()
+                    failed_migration=browser.new_context()
+                    failed_migration.add_init_script("""
+                      localStorage.setItem('hk_v2_clients',JSON.stringify([{id:'old-record',name:'Preserved Hospital',city:'Test',status:'New Lead',quote:0,order:0,next:'',remark:''}]));
+                      const put=IDBObjectStore.prototype.put;
+                      IDBObjectStore.prototype.put=function(){throw new DOMException('Migration failed','QuotaExceededError')};
+                    """)
+                    p=failed_migration.new_page();p.goto(address)
+                    p.wait_for_function('!document.body.inert')
+                    p.locator('#browserStorageNotice:not(.hidden)').wait_for()
+                    assert p.evaluate("JSON.parse(localStorage.getItem('hk_v2_clients'))[0].name")=='Preserved Hospital'
+                    assert p.evaluate('clients[0].name')=='Preserved Hospital'
+                    p.evaluate("navigate('data')")
+                    with p.expect_download() as emergency:p.click('button[onclick="prepareFullBackup()"]')
+                    emergency.value.save_as(root/'emergency.json')
+                    assert json.loads((root/'emergency.json').read_text(encoding='utf-8'))['clients'][0]['name']=='Preserved Hospital'
+                    assert p.evaluate('async()=> (await databaseRecords()).size')==0
+                    failed_migration.close()
                     # Old/corrupted state must not crash initialization or be erased.
                     for key,value in [('hk_v2_clients','{}'),('hk_v2_clients','null'),('hk_v2_clients','[null]'),('hk_v2_backups','[{}]'),('hk_v2_segments','{"served":[null]}'),('hk_v2_invoice_workbook','{"sheets":null}')]:
                         old=browser.new_context();old.add_init_script(f'localStorage.setItem({json.dumps(key)},{json.dumps(value)})')
@@ -114,8 +193,8 @@ def check():
                         old.close()
                     blocked=browser.new_context();blocked.add_init_script("Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Storage blocked','SecurityError')}})")
                     p=blocked.new_page();failures=[];p.on('pageerror',lambda error:failures.append(str(error)));p.goto(address)
-                    assert p.locator('#browserStorageNotice').is_visible();assert not failures,failures
-                    blocked.close();reports.append({'browser':channel,'passed':True,'repeated_imports':20,'corrupt_storage_cases':6,'blocked_storage':True,'transfer':True,'mobile':True,'admin_removal':True,'rollback':True})
+                    p.locator('#browserStorageNotice:not(.hidden)').wait_for();assert not failures,failures
+                    blocked.close();reports.append({'browser':channel,'passed':True,'repeated_imports':20,'corrupt_storage_cases':6,'blocked_storage':True,'transfer':True,'mobile':True,'admin_removal':True,'rollback':True,'full_legacy_storage_clients':1743,'migration_failure_preserves_originals':True,'emergency_export':True,'cross_tab_reset':True})
                     browser.close()
             print(json.dumps({'server':'Waitress','fresh_setup_without_private_data':True,'results':reports}))
         finally:

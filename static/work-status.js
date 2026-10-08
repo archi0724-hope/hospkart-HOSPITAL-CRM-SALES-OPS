@@ -36,11 +36,11 @@ function workStatusControl(record, scope = 'clients') {
   return `<div class="work-controls" onclick="event.stopPropagation()"><span class="work-tag work-${color}">${workColors[color]}</span><select class="work-color-select" aria-label="Work color for ${escapeHtml(record.name)}" data-work-id="${id}" data-work-scope="${source}" onchange="changeWorkColor(this)">${workColorOptions(record, scope)}</select><button type="button" class="action-link" data-work-id="${id}" data-work-scope="${source}" onclick="openWorkStatusEditor(this.dataset.workId,this.dataset.workScope)">Remarks / color</button></div>${color === 'blue' && !String(record.remark || '').trim() ? '<div class="work-missing-remark">Add a remark for this order or query.</div>' : ''}`;
 }
 
-function saveWorkRecords(scope) {
-  if (scope === 'clients') persist(); else persistSegments();
+async function saveWorkRecords(scope) {
+  if (scope === 'clients') await persist(); else await persistSegments();
 }
 
-function changeWorkColor(select) {
+async function changeWorkColor(select) {
   if (dashboardResetting) return;
   const {workId: id, workScope: scope} = select.dataset, record = findWorkRecord(id, scope);
   if (!record) return;
@@ -52,7 +52,7 @@ function changeWorkColor(select) {
   }
   record.workColor = chosen;
   record.workColorUpdatedAt = new Date().toISOString();
-  saveWorkRecords(scope);
+  await saveWorkRecords(scope);
   renderAll();
   toast(chosen ? `Work color changed to ${chosen}.` : 'Automatic work colors restored.');
 }
@@ -80,7 +80,7 @@ function updateWorkRemarkRequirement() {
   document.getElementById('workRemarkLabel').textContent = required ? 'Remarks (required for order / query)' : 'Remarks';
 }
 
-function saveWorkStatus(event) {
+async function saveWorkStatus(event) {
   event.preventDefault();
   if (dashboardResetting) return;
   const scope = document.getElementById('workRecordScope').value;
@@ -95,7 +95,7 @@ function saveWorkStatus(event) {
   if (record.sourceData) {
     Object.keys(record.sourceData).filter(key => ['remarks', 'remark', 'latestremark'].includes(normalizeImportHeader(key))).forEach(key => {record.sourceData[key] = remark;});
   }
-  saveWorkRecords(scope);
+  await saveWorkRecords(scope);
   closeDrawer('workStatusDrawer');
   renderAll();
   toast('Work color and remarks saved.');
@@ -109,15 +109,15 @@ function workCallOccurredAt(date) {
   return date + 'T' + new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Kolkata', hour12: false}) + '+05:30';
 }
 
-function markWorkOutreach(record) {
+async function markWorkOutreach(record) {
   if (!record) return;
   record.workOutreachCompleted = true;
   record.workOutreachAt = new Date().toISOString();
-  persist();
+  await persist();
   renderAll();
 }
 
-function syncEmailWorkStatus(items) {
+async function syncEmailWorkStatus(items) {
   if (dashboardResetting) return;
   let changed = false;
   items.filter(job => job.status === 'accepted' && job.sent_at).forEach(job => {
@@ -131,7 +131,7 @@ function syncEmailWorkStatus(items) {
       }
     });
   });
-  if (changed) { persist(); if (currentView !== 'email') renderAll(); }
+  if (changed) { await persist(); if (currentView !== 'email') renderAll(); }
 }
 
 async function refreshWorkEmailStatus() {
@@ -141,7 +141,7 @@ async function refreshWorkEmailStatus() {
     const response = await fetch('/api/email/followups');
     const data = await response.json();
     if (dashboardResetting || version !== dashboardDataVersion) return;
-    if (response.ok && data.ok) syncEmailWorkStatus(data.items);
+    if (response.ok && data.ok) await syncEmailWorkStatus(data.items);
   } catch (_) { /* Offline dashboards keep their saved colors. */ }
 }
 

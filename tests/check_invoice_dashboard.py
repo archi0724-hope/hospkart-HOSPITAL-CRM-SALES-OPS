@@ -77,7 +77,7 @@ def check():
                 assert page.evaluate('clients.length') == before
                 assert page.locator('#servedTotal').inner_text() == '38'
                 # Reset suppression must persist across reloads.
-                page.evaluate("localStorage.setItem('hk_v2_invoice_workbook','null');localStorage.setItem('hk_v2_reset_revision','test');")
+                page.evaluate("writeDashboardValues({hk_v2_invoice_workbook:null,hk_v2_reset_revision:'test'})")
                 page.reload()
                 page.wait_for_timeout(500)
                 assert page.locator('#invoiceDashboard').is_hidden()
