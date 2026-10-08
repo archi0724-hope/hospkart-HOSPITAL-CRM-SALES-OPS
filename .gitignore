@@ -7,5 +7,10 @@ __pycache__/
 *.pyc
 data/*.db
 data/*.db-*
+data/admin_password.hash
+data/imported_invoice_workbook.json
+data/*.png
+invoice-server.stdout.log
+invoice-server.stderr.log
 localhost.stdout.log
 localhost.stderr.log

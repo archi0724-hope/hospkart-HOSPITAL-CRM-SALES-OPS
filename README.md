@@ -1,5 +1,11 @@
 # HOSPkart Hospital CRM + SmartBot + WhatsApp
 
+To remove one imported worksheet without resetting the dashboard, open **Data & backups → Manage imported Excel data**, choose **Remove** beside the specific worksheet, workbook, or imported section, enter the admin password, and type the displayed confirmation. A checkpoint is saved first. Other imports, saved client records, call history, feedback, and the original Excel file are retained. Refresh preserves the removal; an intentional checkpoint restore or re-import can bring the data back.
+
+Configure the admin password on this computer by double-clicking `set_admin_password.bat` (or running `.venv/Scripts/python.exe set_admin_password.py` from this directory). The password must have at least 12 characters; only its hash is saved in the ignored file `data/admin_password.hash`. Changing an existing password requires the current password. Alternatively, administrators can configure `ADMIN_PASSWORD_HASH` in the private environment. Removal is disabled until a password is configured, and the server checks the password for each removal request.
+
+This local app stores imported data and checkpoints in browser localStorage. The password protects the dashboard's removal controls, not direct access to browser storage or operating-system files. Removal affects the current browser's imported copy. The original workbook remains available for deliberate re-import.
+
 VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with:
 
 - floating SmartBot icon in the bottom-right corner
@@ -102,6 +108,14 @@ CRM records are saved in the current browser's localStorage and remain after ref
 In **Data & backups**, acknowledge permanent deletion, type **RESET DASHBOARD**, and click **Clear all dashboard data**. Reset removes all clients, calls, feedback, imported sections, work colors, saved checkpoints, email/WhatsApp history and scheduled follow-ups. **No backup is created**, saved checkpoints become **0**, and records remain empty after refreshing. Other dashboard tabs in the same browser reload to show the cleared data. Credentials and sender configuration remain available for new work.
 
 The Python server must be running to clear messaging history. If a follow-up is currently being processed, wait for it to finish and reset again. Backend errors leave the browser records and checkpoints in place. Previously downloaded files and messages already sent to customers cannot be recalled by resetting the dashboard.
+
+## Excel imports
+
+Invoice workbooks containing **Client Summary** and **Client Call List** load a unified dashboard with invoice totals, distinct clients, item details, categories, locations, payment statuses, and cancelled invoices. Original columns from all worksheets remain available in **Workbook details**. The sidebar displays the supplied HOSPkart banner without clipping.
+
+To make a local invoice workbook available through **Load provided Excel**, run `.venv/Scripts/python.exe prepare_invoice_workbook.py "C:/path/to/invoices.xlsx"` from this directory. This creates `data/imported_invoice_workbook.json`; customer data, admin password hashes, generated screenshots, and runtime logs are excluded from Git. You can also use **Import Excel** directly. The browser verification scripts `tests/check_invoice_dashboard.py` and `tests/check_import_removal.py` require this locally prepared workbook and Microsoft Edge. Run the source-independent unit tests with `.venv/Scripts/python.exe -m unittest discover -s tests`.
+
+Use **Import Excel** within **Already Served**, **Doctors**, or **Potential Leads** to upload that section's list. The importer recognizes common hospital/customer name headings, including annotated headings and headings below title rows. If it cannot recognize the name column, select the worksheet, header row, and hospital/customer name column in **Choose your Excel columns**. Check the preview, then confirm the import. Original spreadsheet columns are retained.
 
 ## Hospital work colors
 

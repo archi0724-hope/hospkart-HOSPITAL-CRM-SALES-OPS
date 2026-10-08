@@ -3,6 +3,7 @@ let dashboardDataVersion = 0;
 
 async function performDashboardReset() {
   if (dashboardResetting) return;
+  if (typeof importRemovalSubmitting !== 'undefined' && importRemovalSubmitting) { toast('Wait for the import removal to finish.'); return; }
   if (!document.getElementById('resetAcknowledge').checked || document.getElementById('resetPhrase').value.trim() !== 'RESET DASHBOARD') {
     toast('Confirm permanent deletion and type RESET DASHBOARD to continue.');
     updateResetButton();
@@ -25,6 +26,9 @@ async function performDashboardReset() {
     // Empty arrays must remain stored so refresh does not restore the demo records.
     for (const key of ['hk_v2_clients', 'hk_v2_calls', 'hk_v2_feedback', 'hk_v2_backups']) localStorage.setItem(key, '[]');
     localStorage.setItem('hk_v2_segments', JSON.stringify({served: [], doctors: [], potential: []}));
+    localStorage.setItem('hk_v2_invoice_workbook', 'null');
+    invoiceWorkbook = null;
+    renderInvoiceDashboard();
     localStorage.setItem('hk_v2_reset_revision', String(Date.now()));
     clients = [];
     calls = [];

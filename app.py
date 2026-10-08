@@ -13,11 +13,14 @@ from io import BytesIO
 from pathlib import Path
 from threading import RLock
 from zoneinfo import ZoneInfo
+from collections import deque
+from time import monotonic
 
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
+from werkzeug.security import check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "data" / "hospkart_crm.db"
@@ -54,13 +57,104 @@ CLIENT_NAME_HEADERS = {
     "nameofcustomer",
     "businessname",
     "nameofestablishment",
+    "company", "customer", "hospitalclinic", "hospitalclinicname",
+    "nameofdoctor", "nameofthehospital", "nameoftheclient", "nameofthecustomer",
+    "nameoftheparty", "nameofparty", "party", "partynameaddress",
+    "hospitalnames", "clientnames", "customernames", "servedhospitalname",
+    "hospitalinstitutionname", "nameofhospitalclinic", "customerhospitalname",
+    "hospitalcustomername", "clienthospitalname", "hospitalnameaddress",
+    "nameaddress", "nameandaddress", "nameaddressofhospital", "nameofhospitalandaddress",
+    "hospitals", "hospname", "customernameaddress", "customernameandaddress",
+    "clientnameaddress", "clientnameandaddress", "hospitalclinicnameaddress",
+    "nameoftheinstitution", "nameoftheinstitute", "institutionhospitalname",
 }
+
+
+def normalize_excel_header(value):
+    text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", str(value or "").lower())
+    return re.sub(r"[^a-z0-9]", "", text)
+
+
+def detect_excel_header(rows):
+    candidates = []
+    fallback_candidates = []
+    common = {"city", "district", "state", "mobile", "mobilenumber", "phone", "email", "address", "status", "contactperson", "remarks", "srno", "sno"}
+    for index, row in enumerate(rows[:50]):
+        headers = {normalize_excel_header(value) for value in row if value is not None}
+        if headers & CLIENT_NAME_HEADERS:
+            candidates.append((len(headers & common), len(headers - {""}), -index, index))
+        if headers & common:
+            fallback_candidates.append((len(headers & common), len(headers - {""}), -index, index))
+    if candidates or fallback_candidates:
+        return max(candidates or fallback_candidates)[-1]
+    return next((index for index, row in enumerate(rows) if any(value is not None and str(value).strip() for value in row)), 0)
+
+
+def excel_column_names(row):
+    names, seen = [], set()
+    for index, value in enumerate(row):
+        base = str(value).strip() if value is not None and str(value).strip() else f"Column {index + 1}"
+        name, suffix = base, 2
+        while name in seen:
+            name = f"{base} ({suffix})"
+            suffix += 1
+        names.append(name)
+        seen.add(name)
+    return names
 
 load_dotenv(BASE_DIR / ".env")
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
+app.json.sort_keys = False
 messaging_lock = RLock()
+admin_lock = RLock()
+admin_attempts = deque()
+ADMIN_PASSWORD_PATH = BASE_DIR / "data" / "admin_password.hash"
+
+
+def admin_password_hash():
+    configured = os.getenv("ADMIN_PASSWORD_HASH", "").strip()
+    if configured:
+        return configured
+    return ADMIN_PASSWORD_PATH.read_text(encoding="utf-8").strip() if ADMIN_PASSWORD_PATH.exists() else ""
+
+
+@app.get("/api/admin/status")
+def admin_status():
+    return jsonify({"ok": True, "configured": bool(admin_password_hash())})
+
+
+@app.post("/api/admin/remove-import")
+def authorize_import_removal():
+    # Imported records live in this browser. Authorize a precise removal scope;
+    # never accept a browser-provided 'is_admin' flag or expose the password hash.
+    password_hash = admin_password_hash()
+    if not password_hash:
+        return jsonify({"ok": False, "error": "An administrator must configure the admin password before removing imports."}), 503
+    if request.headers.get("Origin") and request.headers["Origin"].rstrip("/") != request.host_url.rstrip("/"):
+        return jsonify({"ok": False, "error": "Use the dashboard on this server to remove imports."}), 403
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "Provide a removal request."}), 400
+    password = body.get("password")
+    with admin_lock:
+        now = monotonic()
+        while admin_attempts and admin_attempts[0] <= now - 60:
+            admin_attempts.popleft()
+        if len(admin_attempts) >= 5:
+            return jsonify({"ok": False, "error": "Too many incorrect admin passwords. Try again in one minute."}), 429
+        if not isinstance(password, str) or len(password) > 1024 or not check_password_hash(password_hash, password):
+            admin_attempts.append(now)
+            return jsonify({"ok": False, "error": "Incorrect admin password. No data was removed."}), 403
+    scope, name = body.get("scope"), body.get("name")
+    if scope not in {"worksheet", "workbook", "segment"} or not isinstance(name, str) or not name.strip() or len(name) > 255:
+        return jsonify({"ok": False, "error": "Choose one imported worksheet, workbook, or section."}), 400
+    if scope == "segment" and name not in {"served", "doctors", "potential"}:
+        return jsonify({"ok": False, "error": "Unknown imported section."}), 400
+    if body.get("confirmation") != "REMOVE " + name:
+        return jsonify({"ok": False, "error": "Type the exact removal confirmation."}), 400
+    return jsonify({"ok": True, "authorized_scope": scope, "authorized_name": name})
 
 
 def with_messaging_lock(function):
@@ -577,7 +671,15 @@ def process_due_messages():
 
 @app.get("/")
 def home():
-    return render_template("index.html")
+    return render_template("index.html", client_name_headers=sorted(CLIENT_NAME_HEADERS))
+
+
+@app.get("/api/invoice-workbook")
+def supplied_invoice_workbook():
+    snapshot = BASE_DIR / "data" / "imported_invoice_workbook.json"
+    if not snapshot.exists():
+        return jsonify({"ok": False, "error": "No supplied invoice workbook is available."}), 404
+    return jsonify({"ok": True, **json.loads(snapshot.read_text(encoding="utf-8"))})
 
 
 @app.post("/api/import-excel")
@@ -591,19 +693,24 @@ def import_excel():
     content = uploaded.stream.read(16 * 1024 * 1024 + 1)
     if len(content) > 16 * 1024 * 1024:
         return jsonify({"ok": False, "error": "Excel files must be 16 MB or smaller."}), 413
+    workbook = None
     try:
         sheets = {}
+        previews = {}
+        header_rows = json.loads(request.form.get("header_rows", "{}"))
+        if not isinstance(header_rows, dict):
+            raise ValueError("Header selections must specify a row for each worksheet.")
 
-        def header_index(rows):
-            for index, row in enumerate(rows[:20]):
-                headers = {
-                    re.sub(r"[^a-z0-9]", "", str(value).lower())
-                    for value in row
-                    if value is not None
-                }
-                if headers & CLIENT_NAME_HEADERS:
-                    return index
-            return next((index for index, row in enumerate(rows) if any(value is not None for value in row)), 0)
+        def header_index(rows, sheet_name):
+            selected = header_rows.get(sheet_name)
+            if selected is not None:
+                if type(selected) is not int or not 0 <= selected < len(rows):
+                    raise ValueError(f"Choose a valid header row for {sheet_name}.")
+                return selected
+            return detect_excel_header(rows)
+
+        def cell_value(value):
+            return value.isoformat() if hasattr(value, "isoformat") else value
 
         if extension == ".xlsx":
             from openpyxl import load_workbook
@@ -611,32 +718,30 @@ def import_excel():
             workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
             for worksheet in workbook.worksheets:
                 rows = list(worksheet.iter_rows(values_only=True))
-                first_data_row = header_index(rows)
-                headers = rows[first_data_row] if rows else ()
+                first_data_row = header_index(rows, worksheet.title)
+                headers = excel_column_names(rows[first_data_row]) if rows else []
+                previews[worksheet.title] = {"rows": [[cell_value(value) for value in row] for row in rows[:50]], "header_row": first_data_row}
                 sheets[worksheet.title] = [
                     {
-                        str(header).strip(): value.isoformat() if hasattr(value, "isoformat") else value
+                        header: cell_value(value)
                         for header, value in zip(headers, row)
-                        if header is not None and str(header).strip()
                     }
                     for row in rows[first_data_row + 1 :]
                     if any(value is not None for value in row)
                 ]
-            workbook.close()
         else:
             import xlrd
 
             workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
             for worksheet in workbook.sheets():
                 raw_rows = [worksheet.row_values(row_index) for row_index in range(worksheet.nrows)]
-                first_data_row = header_index(raw_rows)
-                headers = raw_rows[first_data_row] if raw_rows else []
+                first_data_row = header_index(raw_rows, worksheet.name)
+                headers = excel_column_names(raw_rows[first_data_row]) if raw_rows else []
+                previews[worksheet.name] = {"rows": raw_rows[:50], "header_row": first_data_row}
                 records = []
                 for row_index in range(first_data_row + 1, worksheet.nrows):
                     record = {}
                     for column, header in enumerate(headers):
-                        if not str(header).strip():
-                            continue
                         cell = worksheet.cell(row_index, column)
                         value = cell.value
                         if cell.ctype == xlrd.XL_CELL_DATE:
@@ -647,10 +752,15 @@ def import_excel():
                     if any(value is not None for value in record.values()):
                         records.append(record)
                 sheets[worksheet.name] = records
-            workbook.release_resources()
-        return jsonify({"ok": True, "sheets": sheets})
+        return jsonify({"ok": True, "sheets": sheets, "sheet_previews": previews})
     except Exception as exc:
         return jsonify({"ok": False, "error": f"Could not read this Excel file: {exc}"}), 400
+    finally:
+        if workbook is not None:
+            if extension == ".xlsx":
+                workbook.close()
+            else:
+                workbook.release_resources()
 
 
 @app.get("/api/health")
