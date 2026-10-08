@@ -20,8 +20,8 @@ def prepare(path):
         'sheets': [{'name': name, 'rows': rows} for name, rows in response.json['sheets'].items()],
         'sheet_previews': response.json['sheet_previews'],
     }}
-    target = app.BASE_DIR / 'data' / 'imported_invoice_workbook.json'
-    target.parent.mkdir(exist_ok=True)
+    target = app.DATA_DIR / 'imported_invoice_workbook.json'
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
     print('Prepared:', source.name)
     print('Worksheet rows:', {sheet['name']: len(sheet['rows']) for sheet in payload['workbook']['sheets']})

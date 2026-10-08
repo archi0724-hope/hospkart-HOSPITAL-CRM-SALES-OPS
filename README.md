@@ -103,6 +103,8 @@ Enter the hospital and contact details, requirement, quotation value, follow-up 
 
 CRM records are saved in the current browser's localStorage and remain after refresh. Use **Data & backups** to download a checkpoint before changing browsers or clearing browser storage. SmartBot and WhatsApp API features require the Python server.
 
+Chrome, Edge, and different site addresses have separate saved data. To transfer everything, click **Prepare full data backup** in the original browser, then **Restore JSON checkpoint** in the new browser. This transfers clients, calls, feedback, imported sections, and every invoice worksheet. Storage that is blocked or unreadable is reported on the page; unreadable saved values are retained for recovery. Recent backup retention adapts to browser storage limits. Imports and checkpoint restores roll back if saving fails.
+
 ## Reset the dashboard permanently
 
 In **Data & backups**, acknowledge permanent deletion, type **RESET DASHBOARD**, and click **Clear all dashboard data**. Reset removes all clients, calls, feedback, imported sections, work colors, saved checkpoints, email/WhatsApp history and scheduled follow-ups. **No backup is created**, saved checkpoints become **0**, and records remain empty after refreshing. Other dashboard tabs in the same browser reload to show the cleared data. Credentials and sender configuration remain available for new work.
@@ -113,7 +115,7 @@ The Python server must be running to clear messaging history. If a follow-up is 
 
 Invoice workbooks containing **Client Summary** and **Client Call List** load a unified dashboard with invoice totals, distinct clients, item details, categories, locations, payment statuses, and cancelled invoices. Original columns from all worksheets remain available in **Workbook details**. The sidebar displays the supplied HOSPkart banner without clipping.
 
-To make a local invoice workbook available through **Load provided Excel**, run `.venv/Scripts/python.exe prepare_invoice_workbook.py "C:/path/to/invoices.xlsx"` from this directory. This creates `data/imported_invoice_workbook.json`; customer data, admin password hashes, generated screenshots, and runtime logs are excluded from Git. You can also use **Import Excel** directly. The browser verification scripts `tests/check_invoice_dashboard.py` and `tests/check_import_removal.py` require this locally prepared workbook and Microsoft Edge. Run the source-independent unit tests with `.venv/Scripts/python.exe -m unittest discover -s tests`.
+To make a local invoice workbook available through **Load provided Excel**, run `.venv/Scripts/python.exe prepare_invoice_workbook.py "C:/path/to/invoices.xlsx"` from this directory. This creates `data/imported_invoice_workbook.json`; customer data, admin password hashes, generated screenshots, and runtime logs are excluded from Git. You can also use **Import Excel** directly. The original workbook checks `tests/check_invoice_dashboard.py` and `tests/check_import_removal.py` require this locally prepared workbook and Chrome/Edge respectively. The invoice check also accepts `BROWSER_CHANNEL=msedge`. Run the source-independent unit tests with `.venv/Scripts/python.exe -m unittest discover -s tests`.
 
 Use **Import Excel** within **Already Served**, **Doctors**, or **Potential Leads** to upload that section's list. The importer recognizes common hospital/customer name headings, including annotated headings and headings below title rows. If it cannot recognize the name column, select the worksheet, header row, and hospital/customer name column in **Choose your Excel columns**. Check the preview, then confirm the import. Original spreadsheet columns are retained.
 
@@ -189,6 +191,16 @@ After you are satisfied with the response quality, you can set it to `true`. The
 Free-form messages are suitable when the customer-service conversation window is open after a customer message. Business-initiated/out-of-window follow-ups should use approved Meta templates. The scheduler in this demo intentionally uses templates.
 
 ## 10. Production suggestions
+
+Start this Flask application with a Python host, using `pip install -r requirements.txt` followed by `python production.py`. The Windows and Linux launch scripts use Waitress, a WSGI server, and work in Chrome and Edge through the server URL. Open `http://127.0.0.1:5000/` locally. `dashboard_demo.html` now opens the same served application rather than a stale standalone copy. GitHub Pages and other static-only hosts cannot run the Python APIs. Keep debug mode disabled.
+
+Set `CRM_DATA_DIR` to an absolute persistent directory when deploying so SQLite, the local admin hash, and a prepared private workbook survive application releases. Configure `ADMIN_PASSWORD_HASH` or run `set_admin_password.py` on the host before using admin removal. Customer workbook contents are deliberately excluded from this public repository: import the Excel file after deployment, prepare it on the host, or restore a JSON checkpoint. Browser data does not automatically synchronize between users or devices.
+
+Run exactly one server process while `SCHEDULER_ENABLED=true`. For multiple web processes, set `SCHEDULER_ENABLED=false` on them and arrange one scheduler owner before enabling automated follow-ups. Deploy behind the host's HTTPS termination and configure its trusted proxy behavior; the admin action checks request origin. This change does not introduce full user accounts or shared server-side client storage.
+
+For an HTTPS reverse proxy, set `TRUSTED_PROXY` to the proxy's actual peer IP and `TRUSTED_PROXY_COUNT` to its hop count. The proxy must supply `X-Forwarded-Proto`, `X-Forwarded-Host`, and (when needed) `X-Forwarded-Port`. Waitress trusts those headers only from the configured proxy, so HTTPS admin-origin checks can work without trusting arbitrary forwarded headers.
+
+Verification: install `requirements-dev.txt`, then run `python -m unittest discover -s tests` and `python tests/check_production_browsers.py`. The browser check uses actual installed Chrome and Edge against Waitress, temporary synthetic data, repeated large imports, corrupt/blocked storage, save rollback, JSON transfer, mobile navigation, and password-checked removal. CI uses Playwright Chromium with synthetic data; private customer files are unnecessary.
 
 Before using this as your live HOSPkart CRM:
 

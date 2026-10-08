@@ -8,4 +8,4 @@ pip install -r requirements.txt
 if [ ! -f .env ]; then
   cp .env.example .env
 fi
-python app.py
+python production.py

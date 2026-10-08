@@ -1,5 +1,6 @@
 """End-to-end regression checks against the supplied workbook and local Flask app."""
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -20,7 +21,7 @@ def check():
         thread.start()
         try:
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(channel='msedge')
+                browser = playwright.chromium.launch(channel=os.getenv('BROWSER_CHANNEL','chrome'))
                 page = browser.new_page(viewport={'width': 1440, 'height': 1000})
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))

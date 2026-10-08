@@ -19,11 +19,13 @@ from time import monotonic
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, url_for
 from werkzeug.security import check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "data" / "hospkart_crm.db"
+load_dotenv(BASE_DIR / ".env")
+DATA_DIR = Path(os.getenv("CRM_DATA_DIR", str(BASE_DIR / "data"))).expanduser().resolve()
+DB_PATH = DATA_DIR / "hospkart_crm.db"
 IST = ZoneInfo("Asia/Kolkata")
 CLIENT_NAME_HEADERS = {
     "name",
@@ -102,15 +104,21 @@ def excel_column_names(row):
         seen.add(name)
     return names
 
-load_dotenv(BASE_DIR / ".env")
-
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
 app.json.sort_keys = False
 messaging_lock = RLock()
 admin_lock = RLock()
 admin_attempts = deque()
-ADMIN_PASSWORD_PATH = BASE_DIR / "data" / "admin_password.hash"
+ADMIN_PASSWORD_PATH = DATA_DIR / "admin_password.hash"
+
+
+@app.context_processor
+def versioned_static_assets():
+    def asset_url(filename):
+        asset = BASE_DIR / "static" / filename
+        return url_for("static", filename=filename, v=asset.stat().st_mtime_ns)
+    return {"asset_url": asset_url}
 
 
 def admin_password_hash():
@@ -171,7 +179,7 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 @contextmanager
 def db_conn():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     try:
         with conn:
@@ -183,6 +191,7 @@ def db_conn():
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with db_conn() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS message_log (
@@ -676,7 +685,7 @@ def home():
 
 @app.get("/api/invoice-workbook")
 def supplied_invoice_workbook():
-    snapshot = BASE_DIR / "data" / "imported_invoice_workbook.json"
+    snapshot = DATA_DIR / "imported_invoice_workbook.json"
     if not snapshot.exists():
         return jsonify({"ok": False, "error": "No supplied invoice workbook is available."}), 404
     return jsonify({"ok": True, **json.loads(snapshot.read_text(encoding="utf-8"))})
@@ -941,7 +950,8 @@ init_db()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 scheduler.add_job(process_due_messages, "interval", seconds=60, id="whatsapp_followups", replace_existing=True)
 scheduler.add_job(process_due_emails, "interval", seconds=15, id="email_followups", replace_existing=True)
-scheduler.start()
+if env_bool("SCHEDULER_ENABLED", True):
+    scheduler.start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=env_bool("FLASK_DEBUG", True), use_reloader=False)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=env_bool("FLASK_DEBUG", False), use_reloader=False)
