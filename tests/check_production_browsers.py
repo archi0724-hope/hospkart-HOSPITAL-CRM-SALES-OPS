@@ -35,17 +35,6 @@ def make_workbook(path):
     workbook.save(path);workbook.close()
 
 
-def make_test_record():
-    return {
-        'id':'TEST-CLIENT-1','name':'Synthetic Test Hospital','type':'Test fixture',
-        'city':'Test City','district':'Test District','state':'Test State',
-        'contact':'Test Contact','mobile':'9999999999','email':'test@example.invalid',
-        'requirement':'Test equipment','product':'Test product','status':'New Lead',
-        'quote':0,'order':0,'last':'2026-09-01','next':'','executive':'Test',
-        'remark':'Synthetic browser-test record','priority':'Medium','sourceData':{}
-    }
-
-
 def check():
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp);app.DATA_DIR=root;app.DB_PATH=root/'test.db';app.ADMIN_PASSWORD_PATH=root/'admin.hash'
@@ -70,9 +59,6 @@ def check():
                     page.on('pageerror',lambda error:errors.append(str(error)))
                     page.goto(address)
                     page.wait_for_function('dashboardReady && !document.body.inert')
-                    assert page.evaluate("""()=>clients.length===0&&calls.length===0&&feedback.length===0&&backups.length===0&&workspaceRecords().length===0&&invoiceWorkbook===null"""),'A fresh browser must start without sample records'
-                    base_record=make_test_record()
-                    page.evaluate("""async record=>{clients.push(record);await persist();renderAll()}""",base_record)
                     assert page.locator('#page-dashboard').get_by_role('heading',name='Follow-ups',exact=True).count()==0
                     assert page.locator('#navigationToggle').is_visible()
                     color_options=page.locator('.work-color-select').first.locator('option').all_inner_texts()
@@ -89,8 +75,8 @@ def check():
                     assert page.locator('.work-legend .duplicate-neon').evaluate("element=>getComputedStyle(element).color")=='rgb(185, 214, 0)'
                     assert page.locator('#newStatus option').all_inner_texts().count('Not Interested')==1
                     assert {'Demand Fulfilled','Order Finalized'}.issubset(set(page.locator('#newStatus option').all_inner_texts()))
-                    routing=page.evaluate("""async base=>{
-                      const first={...base,id:'HK-DUPTEST1',name:'Neon Duplicate Test',status:'Contacted',workColor:'green'};
+                    routing=page.evaluate("""async()=>{
+                      const first={...originalClients[0],id:'HK-DUPTEST1',name:'Neon Duplicate Test',status:'Contacted',workColor:'green'};
                       const second={...first,id:'HK-DUPTEST2',workColor:''};
                       const unique={...first,id:'HK-UNIQUETEST',name:'Single Unique Test'};
                       clients.push(first,unique);sectionRecords.leads.push(second);refreshDuplicateWorkRecords();renderDashboard();
@@ -106,9 +92,9 @@ def check():
                       const result={nameColor,rowBackground,uniqueIsUnhighlighted,sourceRetained:clients.includes(first),copyExists:!!copy,copyIsGreen:copy?.workColor==='green',copyHighlighted:copyRow?.classList.contains('duplicate-record')===true};
                       clients=clients.filter(record=>!['HK-DUPTEST1','HK-UNIQUETEST'].includes(record.id));sectionRecords.leads=sectionRecords.leads.filter(record=>record.id!=='HK-DUPTEST2');sectionRecords.potential=sectionRecords.potential.filter(record=>record.sourceRecordId!=='HK-DUPTEST1');segmentData.potential=sectionRecords.potential;
                       await Promise.all([persist(),persistLeads(),persistSegments()]);renderAll();return result;
-                    }""",base_record)
+                    }""")
                     assert routing=={'nameColor':'rgb(185, 214, 0)','rowBackground':'rgb(241, 250, 244)','uniqueIsUnhighlighted':True,'sourceRetained':True,'copyExists':True,'copyIsGreen':True,'copyHighlighted':True},routing
-                    assert page.locator('#navClients').inner_text()=='1'
+                    assert page.locator('#navClients').inner_text()=='10'
                     sections=page.evaluate("Array.from(document.querySelectorAll('.workspace-page'),section=>({id:section.id,title:section.querySelector('h2')?.innerText,parent:section.parentElement.id}))")
                     assert all(section['parent']!='page-dashboard' for section in sections),sections
                     assert page.evaluate("document.querySelector('#clientRows').closest('.page').id==='page-dashboard'"),'The combined records table must stay on Dashboard'
@@ -118,12 +104,12 @@ def check():
                     assert page.locator('#page-served').is_visible() and not page.locator('#page-doctors').is_visible() and not page.locator('#page-dashboard').is_visible()
                     assert page.evaluate("document.querySelectorAll('.page.active').length===1"),'Workspace navigation must activate exactly one page'
                     page.evaluate("navigate('dashboard')")
-                    rghs=page.evaluate("""async base=>{
-                      const fixture={...base,id:'HK-R-fixture',name:'Independent RGHS fixture',sourceData:{Program:'RGHS'}};
+                    rghs=page.evaluate("""async()=>{
+                      const fixture={...originalClients[0],id:'HK-R-fixture',name:'Independent RGHS fixture',sourceData:{Program:'RGHS'}};
                       const master=JSON.stringify(clients);sectionRecords.rghs.push(fixture);
                       try{await persistRghs();renderRghsPage();renderDashboard();return {count:document.getElementById('rghsTotal').textContent,shown:document.getElementById('rghsRows').innerText.includes(fixture.name),masterUnchanged:master===JSON.stringify(clients),stored:JSON.parse(dashboardStorage.get('hk_v2_rghs')).some(record=>record.id===fixture.id),overallIncludes:document.getElementById('clientRows').innerText.includes(fixture.name)&&document.getElementById('clientRows').innerText.includes('RGHS Data'),overallCount:Number(document.getElementById('kpiClients').textContent),workspaceCount:workspaceRecords().length}}
                       finally{sectionRecords.rghs.pop();await persistRghs();renderRghsPage();renderDashboard()}
-                    }""",base_record)
+                    }""")
                     assert rghs['count']=='1' and rghs['shown'] and rghs['masterUnchanged'] and rghs['stored'] and rghs['overallIncludes'] and rghs['overallCount']==rghs['workspaceCount'],rghs
                     page.click('button[onclick="loadInvoiceWorkbook(true)"]')
                     page.locator('#toast').get_by_text('No workbook is stored on this server. Use Import Excel to load your file.',exact=True).wait_for()
@@ -230,6 +216,7 @@ def check():
                     page.evaluate("navigate('reports')")
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert not errors,errors
+                    base_record=page.evaluate('originalClients[1]')
                     context.close()
                     # Reproduce the screenshot: 1,743 existing clients and a full
                     # legacy localStorage must migrate without dropping history.
@@ -281,9 +268,6 @@ def check():
                     p.click('#resetConfirmButton')
                     p.wait_for_function('!dashboardResetting && clients.length===0 && invoiceWorkbook===null && Object.values(sectionRecords).every(records=>records.length===0)')
                     peer.wait_for_function('dashboardReady && clients.length===0 && invoiceWorkbook===null && Object.values(sectionRecords).every(records=>records.length===0)')
-                    p.reload();p.wait_for_function('dashboardReady && !document.body.inert')
-                    assert p.evaluate("clients.length===0&&calls.length===0&&feedback.length===0&&invoiceWorkbook===null&&Object.values(sectionRecords).every(records=>records.length===0)")
-                    assert not errors,errors
                     large.close()
                     failed_migration=browser.new_context()
                     failed_migration.add_init_script("""

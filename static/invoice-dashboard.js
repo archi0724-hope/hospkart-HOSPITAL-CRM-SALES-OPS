@@ -93,7 +93,7 @@ async function loadInvoiceWorkbook(force = false) {
   const version = dashboardDataVersion;
   try {
     const saved = (dashboardStorage.get('hk_v2_invoice_workbook')??null);
-    if (!force && saved !== null && saved !== 'null') {
+    if (!force && saved !== null) {
       const snapshot=JSON.parse(saved);
       if(!validInvoiceSnapshot(snapshot))throw new Error('Saved invoice data is unreadable. Restore a JSON checkpoint or import the Excel file again.');
       const served=invoiceClientRecords(snapshot,segmentData.served),merged=mergeImportedClients(invoiceMasterRecords(snapshot));

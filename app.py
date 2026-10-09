@@ -429,14 +429,11 @@ def api_reset_dashboard():
     if not messaging_lock.acquire(blocking=False):
         return jsonify({"ok": False, "error": "Follow-up activity is in progress. Wait for it to finish, then reset again."}), 409
     try:
-        prepared_workbook = DATA_DIR / "imported_invoice_workbook.json"
-        workbook_removed = prepared_workbook.exists()
-        prepared_workbook.unlink(missing_ok=True)
         with db_conn() as conn:
             cleared = {}
             for table in ("email_followups", "scheduled_messages", "message_log"):
                 cleared[table] = conn.execute(f"DELETE FROM {table}").rowcount
-        return jsonify({"ok": True, "cleared": cleared, "provided_workbook_removed": workbook_removed})
+        return jsonify({"ok": True, "cleared": cleared})
     finally:
         messaging_lock.release()
 

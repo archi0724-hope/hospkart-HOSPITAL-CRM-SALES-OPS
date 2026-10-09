@@ -11,14 +11,9 @@ class DashboardResetTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
-        self.data_dir = Path(temp.name)
-        db = patch.object(app, 'DB_PATH', self.data_dir / 'test.db')
+        db = patch.object(app, 'DB_PATH', Path(temp.name) / 'test.db')
         db.start()
         self.addCleanup(db.stop)
-        data_dir = patch.object(app, 'DATA_DIR', self.data_dir)
-        data_dir.start()
-        self.addCleanup(data_dir.stop)
-        (self.data_dir / 'imported_invoice_workbook.json').write_text('{"synthetic": true}', encoding='utf-8')
         app.init_db()
         self.client = app.app.test_client()
         self.confirmation = {'confirmed_reset': True, 'confirmation': 'RESET DASHBOARD'}
@@ -38,13 +33,10 @@ class DashboardResetTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 self.assertEqual(self.client.post('/api/dashboard/reset', json=payload).status_code, 400)
                 self.assertEqual(self.counts(), initial)
-                self.assertTrue((self.data_dir / 'imported_invoice_workbook.json').exists())
 
     def test_confirmed_reset_clears_all_history_and_pending_jobs(self):
         response = self.client.post('/api/dashboard/reset', json=self.confirmation)
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json['provided_workbook_removed'])
-        self.assertFalse((self.data_dir / 'imported_invoice_workbook.json').exists())
         self.assertEqual(response.json['cleared'], {'email_followups': 5, 'scheduled_messages': 1, 'message_log': 1})
         self.assertEqual(self.counts(), {'email_followups': 0, 'scheduled_messages': 0, 'message_log': 0})
         self.assertEqual(self.client.get('/api/email/followups').json['items'], [])
@@ -53,10 +45,7 @@ class DashboardResetTests(unittest.TestCase):
         with patch.object(app, 'send_email') as send, patch.object(app, 'email_configured', return_value=True):
             app.process_due_emails()
             send.assert_not_called()
-        repeated = self.client.post('/api/dashboard/reset', json=self.confirmation).json
-        self.assertFalse(repeated['provided_workbook_removed'])
-        self.assertEqual(repeated['cleared'], {'email_followups': 0, 'scheduled_messages': 0, 'message_log': 0})
-        self.assertEqual(self.client.get('/api/invoice-workbook').status_code, 404)
+        self.assertEqual(self.client.post('/api/dashboard/reset', json=self.confirmation).json['cleared'], {'email_followups': 0, 'scheduled_messages': 0, 'message_log': 0})
 
     def test_busy_followup_activity_preserves_history_until_finished(self):
         entered, release = Event(), Event()
@@ -72,13 +61,10 @@ class DashboardResetTests(unittest.TestCase):
             response = self.client.post('/api/dashboard/reset', json=self.confirmation)
             self.assertEqual(response.status_code, 409)
             self.assertEqual(self.counts(), initial)
-            self.assertTrue((self.data_dir / 'imported_invoice_workbook.json').exists())
         finally:
             release.set()
             worker.join(timeout=2)
-        response = self.client.post('/api/dashboard/reset', json=self.confirmation)
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse((self.data_dir / 'imported_invoice_workbook.json').exists())
+        self.assertEqual(self.client.post('/api/dashboard/reset', json=self.confirmation).status_code, 200)
 
 
 if __name__ == '__main__':

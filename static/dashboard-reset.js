@@ -70,7 +70,7 @@ async function performDashboardReset() {
     updateEmailRecipients();
     loadScheduledMessages();
     loadEmailHistory();
-    toast('Dashboard reset. All records, saved checkpoints, follow-up history, and the prepared server workbook cleared. No backup was created.');
+    toast('Dashboard reset. All records, saved checkpoints, and follow-up history cleared. No backup was created.');
   }
 }
 
