@@ -48,12 +48,6 @@ function refreshDuplicateWorkRecords() {
   }
   for (const group of groups.values()) {
     if (group.length < 2) continue;
-    if (group.length === 2) {
-      const [first, second] = group;
-      const linkedCopy = (first.sourceWorkspace === second.workspaceScope && first.sourceRecordId === second.id)
-        || (second.sourceWorkspace === first.workspaceScope && second.sourceRecordId === first.id);
-      if (linkedCopy) continue;
-    }
     for (const record of group) duplicateWorkRecords.add(`${record.workspaceScope}:${record.id}`);
   }
 }

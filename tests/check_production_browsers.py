@@ -69,17 +69,22 @@ def check():
                     routing=page.evaluate("""async()=>{
                       const first={...originalClients[0],id:'HK-DUPTEST1',name:'Neon Duplicate Test',status:'Contacted',workColor:'green'};
                       const second={...first,id:'HK-DUPTEST2',workColor:''};
-                      clients.push(first);sectionRecords.leads.push(second);refreshDuplicateWorkRecords();renderDashboard();
+                      const unique={...first,id:'HK-UNIQUETEST',name:'Single Unique Test'};
+                      clients.push(first,unique);sectionRecords.leads.push(second);refreshDuplicateWorkRecords();renderDashboard();
                       const row=document.querySelector('#clientRows tr[data-work-record="HK-DUPTEST1"]');
+                      const uniqueRow=document.querySelector('#clientRows tr[data-work-record="HK-UNIQUETEST"]');
                       const nameColor=row&&getComputedStyle(row.querySelector('.client-name')).color;
                       const rowBackground=row&&getComputedStyle(row.cells[0]).backgroundColor;
+                      const uniqueIsUnhighlighted=uniqueRow&&!uniqueRow.classList.contains('duplicate-record')&&getComputedStyle(uniqueRow.querySelector('.client-name')).color!=='rgb(185, 214, 0)';
                       await routeGreenPotentialLeads('clients');
                       const copy=sectionRecords.potential.find(record=>record.sourceWorkspace==='clients'&&record.sourceRecordId===first.id);
-                      const result={nameColor,rowBackground,sourceRetained:clients.includes(first),copyExists:!!copy,copyIsGreen:copy?.workColor==='green'};
-                      clients=clients.filter(record=>record.id!=='HK-DUPTEST1');sectionRecords.leads=sectionRecords.leads.filter(record=>record.id!=='HK-DUPTEST2');sectionRecords.potential=sectionRecords.potential.filter(record=>record.sourceRecordId!=='HK-DUPTEST1');segmentData.potential=sectionRecords.potential;
+                      refreshDuplicateWorkRecords();renderPotentialPage();
+                      const copyRow=copy&&document.querySelector('#potentialRows tr[data-work-record="'+copy.id+'"]');
+                      const result={nameColor,rowBackground,uniqueIsUnhighlighted,sourceRetained:clients.includes(first),copyExists:!!copy,copyIsGreen:copy?.workColor==='green',copyHighlighted:copyRow?.classList.contains('duplicate-record')===true};
+                      clients=clients.filter(record=>!['HK-DUPTEST1','HK-UNIQUETEST'].includes(record.id));sectionRecords.leads=sectionRecords.leads.filter(record=>record.id!=='HK-DUPTEST2');sectionRecords.potential=sectionRecords.potential.filter(record=>record.sourceRecordId!=='HK-DUPTEST1');segmentData.potential=sectionRecords.potential;
                       await Promise.all([persist(),persistLeads(),persistSegments()]);renderAll();return result;
                     }""")
-                    assert routing=={'nameColor':'rgb(185, 214, 0)','rowBackground':'rgb(241, 250, 244)','sourceRetained':True,'copyExists':True,'copyIsGreen':True},routing
+                    assert routing=={'nameColor':'rgb(185, 214, 0)','rowBackground':'rgb(241, 250, 244)','uniqueIsUnhighlighted':True,'sourceRetained':True,'copyExists':True,'copyIsGreen':True,'copyHighlighted':True},routing
                     assert page.locator('#navClients').inner_text()=='10'
                     sections=page.evaluate("Array.from(document.querySelectorAll('.workspace-page'),section=>({id:section.id,title:section.querySelector('h2')?.innerText,parent:section.parentElement.id}))")
                     assert all(section['parent']!='page-dashboard' for section in sections),sections

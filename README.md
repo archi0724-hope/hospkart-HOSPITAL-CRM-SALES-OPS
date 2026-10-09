@@ -127,7 +127,7 @@ Use **Import Excel** within **Already Served**, **Doctors**, or **Potential Lead
 
 Hospital names, list rows and follow-up cards show their work status: **red** for untouched records, **green** for completed outreach, **yellow** for calls that did not connect, and **blue** for queries, follow-ups, or orders. Completed-green client, lead, and RGHS records are copied into the separate HOSPkart Potential Leads workspace; the source record remains in its original workspace, and each source is copied only once. Recorded query, quotation, follow-up, and order stages take priority over ordinary outreach in Automatic mode. Preparing a draft, queuing an email or opening WhatsApp does not count as completed outreach; email must be accepted by the sender before it turns a record green.
 
-The **Not Interested** pipeline status is available when updating a record and is shown with an orange badge; it does not change the record's separate work color. Duplicate hospital/client names are shown in neon text only, without highlighting the row, so they can be reviewed without deleting or merging records.
+The **Not Interested** pipeline status is available when updating a record and is shown with an orange badge; it does not change the record's separate work color. A hospital/client name is shown in neon text only when it appears more than once across the workspace data, including linked Potential Leads copies; names that appear only once are not highlighted. Rows and cards are not highlighted.
 
 The Orders workspace tracks quotations, finalized orders, demand fulfilled, and served/completed records. **Demand Fulfilled** and **Order Finalized** are available as lead statuses; the Dashboard continues to include these stages in its overall order totals.
 
