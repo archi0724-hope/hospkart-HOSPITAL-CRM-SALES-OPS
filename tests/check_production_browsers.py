@@ -64,10 +64,10 @@ def check():
                     color_options=page.locator('.work-color-select').first.locator('option').all_inner_texts()
                     assert color_options[0]=='—' and 'Follow status' not in color_options and 'Automatic — Untouched' not in color_options,color_options
                     default_color=page.locator('.work-color-select').first.evaluate("""element=>{
-                      const selectStyle=getComputedStyle(element),untouched=document.querySelector('.work-tag.work-red'),tagStyle=getComputedStyle(untouched);
-                      return {selectedValue:element.value,selectColor:selectStyle.color,selectBackground:selectStyle.backgroundColor,tagColor:tagStyle.color,tagBackground:tagStyle.backgroundColor};
+                      const selectStyle=getComputedStyle(element),untouched=document.querySelector('.work-legend .work-tag.work-red'),tagStyle=getComputedStyle(untouched),rowStyle=getComputedStyle(document.querySelector('.data-table tr.work-red'));
+                      return {selectedValue:element.value,selectColor:selectStyle.color,selectBackground:selectStyle.backgroundColor,tagColor:tagStyle.color,tagBackground:tagStyle.backgroundColor,rowBackground:rowStyle.backgroundColor};
                     }""")
-                    assert default_color=={'selectedValue':'','selectColor':'rgb(255, 255, 255)','selectBackground':'rgb(100, 116, 139)','tagColor':'rgb(255, 255, 255)','tagBackground':'rgb(100, 116, 139)'},default_color
+                    assert default_color=={'selectedValue':'','selectColor':'rgb(255, 255, 255)','selectBackground':'rgb(100, 116, 139)','tagColor':'rgb(181, 44, 44)','tagBackground':'rgba(0, 0, 0, 0)','rowBackground':'rgba(0, 0, 0, 0)'},default_color
                     not_interested=page.evaluate("()=>{const node=document.createElement('div');node.innerHTML=badge('Not Interested');document.body.appendChild(node.firstElementChild);const style=getComputedStyle(document.body.lastElementChild);const result={className:document.body.lastElementChild.className,background:style.backgroundColor,color:style.color};document.body.lastElementChild.remove();return result}")
                     assert not_interested=={'className':'status not-interested','background':'rgb(255, 140, 0)','color':'rgb(255, 255, 255)'},not_interested
                     assert page.locator('.work-tag.work-orange').inner_text()=='Orange: Not Interested'
