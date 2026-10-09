@@ -3,7 +3,6 @@
 .work-tag.work-yellow{color:#eab308}
 .work-tag.work-orange{color:#ff8c00}
 .work-tag.work-blue{color:#2254b3}
-.work-tag.duplicate-neon{background:#dfff00;color:#172a52}
-.data-table tr.duplicate-record td,.data-table tr.duplicate-record:hover td{background:#dfff00!important;color:#172a52;border-bottom-color:#b9d600}
-.data-table tr.duplicate-record td:first-child{border-left:4px solid #b9d600!important}
-.queue-item.duplicate-record,.lead-card.duplicate-record{background:#dfff00!important;border:2px solid #b9d600!important;color:#172a52}
+.work-tag.duplicate-neon{color:#b9d600}
+.work-tag.duplicate-neon:before{display:none}
+.duplicate-record .client-name,.duplicate-record .queue-name,.duplicate-record .work-name{color:#b9d600!important}

@@ -63,6 +63,7 @@ def check():
                     assert not_interested=={'className':'status not-interested','background':'rgb(255, 140, 0)','color':'rgb(255, 255, 255)'},not_interested
                     assert page.locator('.work-tag.work-orange').inner_text()=='Orange: Not Interested'
                     assert page.locator('.work-legend .duplicate-neon').inner_text()=='Neon: duplicate records'
+                    assert page.locator('.work-legend .duplicate-neon').evaluate("element=>getComputedStyle(element).color")=='rgb(185, 214, 0)'
                     assert page.locator('#newStatus option').all_inner_texts().count('Not Interested')==1
                     assert {'Demand Fulfilled','Order Finalized'}.issubset(set(page.locator('#newStatus option').all_inner_texts()))
                     routing=page.evaluate("""async()=>{
@@ -70,14 +71,15 @@ def check():
                       const second={...first,id:'HK-DUPTEST2',workColor:''};
                       clients.push(first);sectionRecords.leads.push(second);refreshDuplicateWorkRecords();renderDashboard();
                       const row=document.querySelector('#clientRows tr[data-work-record="HK-DUPTEST1"]');
-                      const highlighted=row?.classList.contains('duplicate-record')&&getComputedStyle(row.cells[0]).backgroundColor==='rgb(223, 255, 0)';
+                      const nameColor=row&&getComputedStyle(row.querySelector('.client-name')).color;
+                      const rowBackground=row&&getComputedStyle(row.cells[0]).backgroundColor;
                       await routeGreenPotentialLeads('clients');
                       const copy=sectionRecords.potential.find(record=>record.sourceWorkspace==='clients'&&record.sourceRecordId===first.id);
-                      const result={highlighted,sourceRetained:clients.includes(first),copyExists:!!copy,copyIsGreen:copy?.workColor==='green'};
+                      const result={nameColor,rowBackground,sourceRetained:clients.includes(first),copyExists:!!copy,copyIsGreen:copy?.workColor==='green'};
                       clients=clients.filter(record=>record.id!=='HK-DUPTEST1');sectionRecords.leads=sectionRecords.leads.filter(record=>record.id!=='HK-DUPTEST2');sectionRecords.potential=sectionRecords.potential.filter(record=>record.sourceRecordId!=='HK-DUPTEST1');segmentData.potential=sectionRecords.potential;
                       await Promise.all([persist(),persistLeads(),persistSegments()]);renderAll();return result;
                     }""")
-                    assert routing=={'highlighted':True,'sourceRetained':True,'copyExists':True,'copyIsGreen':True},routing
+                    assert routing=={'nameColor':'rgb(185, 214, 0)','rowBackground':'rgb(241, 250, 244)','sourceRetained':True,'copyExists':True,'copyIsGreen':True},routing
                     assert page.locator('#navClients').inner_text()=='10'
                     sections=page.evaluate("Array.from(document.querySelectorAll('.workspace-page'),section=>({id:section.id,title:section.querySelector('h2')?.innerText,parent:section.parentElement.id}))")
                     assert all(section['parent']!='page-dashboard' for section in sections),sections
