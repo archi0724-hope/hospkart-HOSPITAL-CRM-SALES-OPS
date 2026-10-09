@@ -114,13 +114,20 @@ def check():
                         page.set_input_files('#excelImportFile',str(fixture))
                         page.wait_for_function('invoiceWorkbook?.sheets.length===6')
                     page.evaluate("navigate('dashboard')")
+                    assert page.locator('#page-dashboard').is_visible()
+                    assert page.locator('#kpiClients').inner_text().strip()!='0'
+                    assert page.get_by_text('Hospital / Client Headcount',exact=True).is_visible()
+                    assert page.locator('#page-dashboard #invoiceDashboard').count()==0
                     assert page.evaluate("Array.from(document.querySelectorAll('.workspace-page')).every(section=>section.parentElement.id!=='page-dashboard'&&!section.classList.contains('hidden'))"),'Workspaces should remain separate pages when an invoice workbook is loaded'
+                    page.evaluate("navigate('reports')")
+                    assert page.locator('#invoiceDashboard').is_visible()
                     assert page.locator('#invoiceDetailRows tr').count()==3
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert page.locator('#servedTotal').inner_text()=='2'
                     for _ in range(20):page.evaluate('installInvoiceWorkbook(invoiceWorkbook,invoiceWorkbook.filename)')
                     assert page.evaluate('backups.length')==10, 'IndexedDB retains all ten checkpoints beyond the localStorage quota'
                     page.reload();page.wait_for_function('invoiceWorkbook?.sheets.length===6')
+                    page.evaluate("navigate('reports')")
                     assert page.locator('#invoiceDetailRows tr').count()==3
                     # A write failure must roll back active data and its checkpoint.
                     rollback=page.evaluate("""async()=>{
@@ -153,6 +160,11 @@ def check():
                     assert failed_form
                     assert 'Changes were not saved' in page.locator('#toast').inner_text()
                     page.reload();page.wait_for_function('invoiceWorkbook?.sheets.length===6')
+                    page.evaluate("navigate('dashboard')")
+                    assert page.locator('#page-dashboard').is_visible()
+                    assert page.locator('#kpiClients').inner_text().strip()!='0'
+                    page.evaluate("navigate('reports')")
+                    assert page.locator('#invoiceDashboard').is_visible()
                     assert page.evaluate('clients[0].remark')=='Persisted work remark'
                     page.evaluate("navigate('data')")
                     with page.expect_download() as download:page.click('button[onclick="prepareFullBackup()"]')
@@ -170,6 +182,7 @@ def check():
                     row.get_by_role('button',name='Remove',exact=True).click()
                     page.fill('#importRemovalPassword',password);page.fill('#importRemovalConfirmation','REMOVE Categorized Items');page.click('#importRemovalSubmit')
                     page.wait_for_function('invoiceWorkbook.sheets.length===5')
+                    page.evaluate("navigate('reports')")
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert not errors,errors
                     base_record=page.evaluate('originalClients[1]')

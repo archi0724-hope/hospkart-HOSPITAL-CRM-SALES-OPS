@@ -49,8 +49,6 @@ function renderInvoiceDashboard() {
   if(typeof renderImportRemoval==='function')renderImportRemoval();
   const panel = document.getElementById('invoiceDashboard'); if (!panel) return;
   panel.classList.toggle('hidden', !invoiceWorkbook);
-  const demo = document.getElementById('demoDisclosure'); if(demo) demo.classList.toggle('hidden', !!invoiceWorkbook);
-  document.querySelectorAll('#page-dashboard > :not(#invoiceDashboard):not(.dashboard-section)').forEach(node => node.classList.toggle('hidden', !!invoiceWorkbook));
   if (!invoiceWorkbook) return;
   const sheetSelect=document.getElementById('invoiceDetailSheet'),selected=sheetSelect.value;
   sheetSelect.replaceChildren();

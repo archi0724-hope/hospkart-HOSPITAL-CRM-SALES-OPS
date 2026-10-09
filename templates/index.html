@@ -88,19 +88,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}.app{mi
 </header>
 <section class="content">
   <p id="browserStorageNotice" class="danger-warning hidden" role="status"></p>
-  <p id="demoDisclosure" class="tiny" style="margin:0 0 14px">Demo data: sample names, contacts and values are fictional.</p>
+    <p id="demoDisclosure" class="tiny" style="margin:0 0 14px">Demo data: sample names, contacts and values are fictional.</p>
 
-  <div class="work-legend" aria-label="Hospital work status colors"><strong>Hospital work status</strong><span class="work-tag work-red">Red: untouched</span><span class="work-tag work-green">Green: outreach completed → Potential Leads</span><span class="work-tag work-yellow">Yellow: call not connected</span><span class="work-tag work-blue">Blue: queries and follow-ups</span><span class="work-tag work-orange">Orange: Not Interested</span><span class="work-tag duplicate-neon">Neon: duplicate records</span><span>Change colors or add remarks beside any hospital.</span></div>
-<section id="page-dashboard" class="page active">
-    <div id="invoiceDashboard" class="hidden">
-      <div class="page-toolbar"><div><h2 class="section-title">Sales invoices & client feedback</h2><p id="invoiceFile" class="section-sub"></p></div><button class="btn primary" onclick="document.getElementById('excelImportFile').click()">Import Excel</button></div>
-      <div class="toolbar-actions" style="margin-bottom:14px;flex-wrap:wrap"><input id="invoiceSearch" class="control" aria-label="Search invoices" placeholder="Search client, invoice or item" oninput="renderInvoiceDashboard()"><select id="invoiceCity" class="control" aria-label="Invoice location" onchange="renderInvoiceDashboard()"></select><select id="invoiceStatus" class="control" aria-label="Payment status" onchange="renderInvoiceDashboard()"></select><label>From <input id="invoiceFrom" class="control" type="date" onchange="renderInvoiceDashboard()"></label><label>To <input id="invoiceTo" class="control" type="date" onchange="renderInvoiceDashboard()"></label><button class="btn" onclick="clearInvoiceFilters()">Clear</button></div>
-      <div id="invoiceMetrics" class="summary-strip" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
-      <p id="invoiceCoverage" class="mini-help" style="margin-bottom:16px"></p>
-      <div id="invoiceCharts" class="invoice-chart-grid"></div>
-      <div class="card"><div class="card-head"><div><h2>Workbook details</h2><small id="invoiceDetailCount"></small></div><div class="toolbar-actions"><select id="invoiceDetailSheet" class="control" aria-label="Worksheet" onchange="renderInvoiceDashboard()"><option>Client Summary</option><option>Client Call List</option><option>Cancelled Invoices</option><option>Categorized Items</option><option>Verification Summary</option><option>Read Me</option></select><button class="btn" onclick="exportInvoiceDetails()">Export visible details</button></div></div><div class="table-wrap"><table class="data-table"><thead id="invoiceDetailHead"></thead><tbody id="invoiceDetailRows"></tbody></table></div></div>
-    </div>
-    <div class="filters">
+    <div class="work-legend" aria-label="Hospital work status colors"><strong>Hospital work status</strong><span class="work-tag work-red">Red: untouched</span><span class="work-tag work-green">Green: outreach completed → Potential Leads</span><span class="work-tag work-yellow">Yellow: call not connected</span><span class="work-tag work-blue">Blue: queries and follow-ups</span><span class="work-tag work-orange">Orange: Not Interested</span><span class="work-tag duplicate-neon">Neon: duplicate records</span><span>Change colors or add remarks beside any hospital.</span></div>
+  <section id="page-dashboard" class="page active">
+      <div class="filters">
       <input id="search" class="control" placeholder="Search hospital, city, contact, product..." oninput="applyFilters()">
       <select id="statusFilter" class="control" onchange="applyFilters()"></select>
       <select id="cityFilter" class="control" onchange="applyFilters()"></select>
@@ -109,7 +101,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}.app{mi
       <button class="btn" onclick="clearFilters()">Clear</button>
     </div>
     <div class="kpis">
-      <div class="kpi clickable" onclick="navigate('dashboard')"><div class="label">All stored records</div><div class="value" id="kpiClients">0</div><div class="sub">Across all dashboard workspaces</div></div>
+      <div class="kpi clickable" onclick="navigate('dashboard')"><div class="label">Hospital / Client Headcount</div><div class="value" id="kpiClients">0</div><div class="sub">Across all dashboard workspaces</div></div>
       <div class="kpi blue clickable" onclick="navigate('leads')"><div class="label">Active opportunities</div><div class="value" id="kpiActive">0</div><div class="sub">Across Hospital & Clients and Leads</div></div>
       <div class="kpi purple clickable" onclick="navigate('quotes')"><div class="label">Quotation pipeline</div><div class="value" id="kpiQuote">₹0</div><div class="sub">Current filtered quotation value</div></div>
       <div class="kpi green clickable" onclick="navigate('orders')"><div class="label">Successful orders</div><div class="value" id="kpiOrders">0</div><div class="sub"><strong id="kpiOrderValue">₹0</strong> order value</div></div>
@@ -248,6 +240,14 @@ HOSPkart Team</textarea></div>
       <div class="report-card"><h3>Successful Orders</h3><p>Confirmed orders, deliveries, feedback pending and completed clients.</p><button class="btn" onclick="exportPreset('won')">Export Excel</button></div>
       <div class="report-card"><h3>Follow-up Queue</h3><p>Clients with an upcoming or overdue next follow-up date and the latest calling note.</p><button class="btn" onclick="exportPreset('followup')">Export Excel</button></div>
       <div class="report-card"><h3>Feedback Pending</h3><p>Delivered or invoiced clients where customer feedback still needs to be recorded.</p><button class="btn" onclick="exportPreset('feedback')">Export Excel</button></div>
+    </div>
+    <div id="invoiceDashboard" class="card hidden">
+      <div class="page-toolbar"><div><h2 class="section-title">Sales invoices & client feedback</h2><p id="invoiceFile" class="section-sub"></p></div><button class="btn primary" onclick="document.getElementById('excelImportFile').click()">Import Excel</button></div>
+      <div class="toolbar-actions" style="margin-bottom:14px;flex-wrap:wrap"><input id="invoiceSearch" class="control" aria-label="Search invoices" placeholder="Search client, invoice or item" oninput="renderInvoiceDashboard()"><select id="invoiceCity" class="control" aria-label="Invoice location" onchange="renderInvoiceDashboard()"></select><select id="invoiceStatus" class="control" aria-label="Payment status" onchange="renderInvoiceDashboard()"></select><label>From <input id="invoiceFrom" class="control" type="date" onchange="renderInvoiceDashboard()"></label><label>To <input id="invoiceTo" class="control" type="date" onchange="renderInvoiceDashboard()"></label><button class="btn" onclick="clearInvoiceFilters()">Clear</button></div>
+      <div id="invoiceMetrics" class="summary-strip" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+      <p id="invoiceCoverage" class="mini-help" style="margin-bottom:16px"></p>
+      <div id="invoiceCharts" class="invoice-chart-grid"></div>
+      <div class="card"><div class="card-head"><div><h2>Workbook details</h2><small id="invoiceDetailCount"></small></div><div class="toolbar-actions"><select id="invoiceDetailSheet" class="control" aria-label="Worksheet" onchange="renderInvoiceDashboard()"><option>Client Summary</option><option>Client Call List</option><option>Cancelled Invoices</option><option>Categorized Items</option><option>Verification Summary</option><option>Read Me</option></select><button class="btn" onclick="exportInvoiceDetails()">Export visible details</button></div></div><div class="table-wrap"><table class="data-table"><thead id="invoiceDetailHead"></thead><tbody id="invoiceDetailRows"></tbody></table></div></div>
     </div>
   </section>
   <section id="page-data" class="page">

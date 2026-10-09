@@ -26,6 +26,13 @@ def check():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto('http://127.0.0.1:5011')
+                assert page.locator('#page-dashboard').is_visible()
+                assert page.locator('#invoiceDashboard').count() == 1
+                assert page.locator('#page-dashboard #invoiceDashboard').count() == 0
+                assert page.get_by_text('Hospital / Client Headcount', exact=True).is_visible()
+                assert page.locator('#kpiClients').inner_text().strip() != '0'
+                page.evaluate("navigate('reports')")
+                assert page.locator('#invoiceDashboard').is_visible()
                 page.locator('#invoiceMetrics').get_by_text('38', exact=True).wait_for()
                 metrics = page.locator('#invoiceMetrics').inner_text()
                 assert '61' in metrics and '202' in metrics and '6' in metrics, metrics
@@ -51,6 +58,7 @@ def check():
                 assert '₹0' not in page.locator('#invoiceMetrics').inner_text()
                 page.click('button[onclick="clearInvoiceFilters()"]')
                 page.reload()
+                page.evaluate("navigate('reports')")
                 page.locator('#invoiceMetrics').get_by_text('38', exact=True).wait_for()
                 output = Path(__file__).resolve().parents[1] / 'data' / 'invoice-dashboard-desktop.png'
                 page.screenshot(path=str(output), full_page=True)
@@ -76,6 +84,10 @@ def check():
                 page.wait_for_function("invoiceWorkbook.filename === 'invoice-reimport.xlsx'")
                 assert page.evaluate('clients.length') == before
                 assert page.locator('#servedTotal').inner_text() == '38'
+                page.evaluate("navigate('dashboard')")
+                assert page.locator('#page-dashboard').is_visible()
+                assert page.locator('#kpiClients').inner_text().strip() != '0'
+                assert page.locator('#invoiceDashboard').is_hidden()
                 # Reset suppression must persist across reloads.
                 page.evaluate("writeDashboardValues({hk_v2_invoice_workbook:null,hk_v2_reset_revision:'test'})")
                 page.reload()

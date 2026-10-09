@@ -65,16 +65,20 @@ def check():
                 page.evaluate("navigate('data')")
                 open_remove('Client Summary'); submit('Client Summary')
                 page.wait_for_function('invoiceWorkbook.sheets.length===5')
+                page.evaluate("navigate('reports')")
                 assert page.locator('#invoiceMetrics').get_by_text('61',exact=True).count()==1
                 assert page.locator('#invoiceMetrics').get_by_text('202',exact=True).count()==1
                 assert 'Client Summary removed' in page.locator('#invoiceCoverage').inner_text()
+                page.evaluate("navigate('data')")
                 open_remove('Client Call List'); submit('Client Call List')
                 page.wait_for_function('invoiceWorkbook.sheets.length===4')
+                page.evaluate("navigate('reports')")
                 assert page.locator('#invoiceMetrics').get_by_text('Unavailable',exact=True).count()==5
                 assert page.evaluate('JSON.stringify({clients,calls,feedback,segmentData})')==before
                 # A section removal clears that section only.
                 page.evaluate("async()=>{sectionRecords.doctors=[{id:'test-doctor',name:'Test doctor',sourceData:{Name:'Test doctor'}}];segmentData.doctors=sectionRecords.doctors;await persistSegments();renderAll()}")
                 served=page.evaluate('JSON.stringify(segmentData.served)')
+                page.evaluate("navigate('data')")
                 open_remove('Doctors'); submit('doctors')
                 page.wait_for_function('segmentData.doctors.length===0')
                 assert page.evaluate('JSON.stringify(segmentData.served)')==served
