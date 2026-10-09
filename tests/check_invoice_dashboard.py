@@ -37,7 +37,9 @@ def check():
                 metrics = page.locator('#invoiceMetrics').inner_text()
                 assert '61' in metrics and '202' in metrics and '6' in metrics, metrics
                 assert page.locator('#invoiceDetailRows tr').count() == 61
-                assert page.locator('#servedTotal').inner_text() == '38'
+                assert page.locator('#servedTotal').inner_text() == '202'
+                assert page.evaluate("segmentData.served.length") == 202
+                assert page.evaluate("segmentData.served.filter(record=>record.name==='Dr. Mukesh').length") > 1
                 actual = page.evaluate("invoiceSheet('Client Summary').reduce((sum,row)=>sum+row['Invoice Total (₹)'],0)")
                 assert round(actual, 2) == 3135013.91, actual
                 page.select_option('#invoiceDetailSheet', 'Client Call List')
@@ -60,6 +62,18 @@ def check():
                 page.reload()
                 page.evaluate("navigate('reports')")
                 page.locator('#invoiceMetrics').get_by_text('38', exact=True).wait_for()
+                assert page.locator('#servedTotal').inner_text() == '202'
+                # Older saved workbooks had 38 grouped client records. The saved
+                # workbook must rebuild the item-level served list on startup.
+                page.evaluate("""async()=>{
+                  const legacy=segmentData.served.slice(0,38).map(record=>({...record}));
+                  legacy[0].workColor='yellow';legacy[0].remark='Preserve existing served remark';
+                  await writeDashboardValues({hk_v2_segments:{...segmentData,served:legacy},hk_v2_served:legacy});
+                }""")
+                page.reload()
+                page.wait_for_function("invoiceWorkbook && segmentData.served.length===202")
+                assert page.locator('#servedTotal').inner_text() == '202'
+                assert page.evaluate("segmentData.served[0].workColor==='yellow'&&segmentData.served[0].remark==='Preserve existing served remark'")
                 output = Path(__file__).resolve().parents[1] / 'data' / 'invoice-dashboard-desktop.png'
                 page.screenshot(path=str(output), full_page=True)
                 page.set_viewport_size({'width': 390, 'height': 844})
@@ -83,7 +97,7 @@ def check():
                 page.set_input_files('#servedImportFile', str(file))
                 page.wait_for_function("invoiceWorkbook.filename === 'invoice-reimport.xlsx'")
                 assert page.evaluate('clients.length') == before
-                assert page.locator('#servedTotal').inner_text() == '38'
+                assert page.locator('#servedTotal').inner_text() == '202'
                 page.evaluate("navigate('dashboard')")
                 assert page.locator('#page-dashboard').is_visible()
                 assert page.locator('#kpiClients').inner_text().strip() != '0'

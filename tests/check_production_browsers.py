@@ -59,6 +59,8 @@ def check():
                     page.on('pageerror',lambda error:errors.append(str(error)))
                     page.goto(address)
                     page.wait_for_function('dashboardReady && !document.body.inert')
+                    assert page.locator('#page-dashboard').get_by_role('heading',name='Follow-ups',exact=True).count()==0
+                    assert page.locator('#navigationToggle').is_visible()
                     not_interested=page.evaluate("()=>{const node=document.createElement('div');node.innerHTML=badge('Not Interested');document.body.appendChild(node.firstElementChild);const style=getComputedStyle(document.body.lastElementChild);const result={className:document.body.lastElementChild.className,background:style.backgroundColor,color:style.color};document.body.lastElementChild.remove();return result}")
                     assert not_interested=={'className':'status not-interested','background':'rgb(255, 140, 0)','color':'rgb(255, 255, 255)'},not_interested
                     assert page.locator('.work-tag.work-orange').inner_text()=='Orange: Not Interested'
@@ -123,9 +125,12 @@ def check():
                     assert page.locator('#invoiceDashboard').is_visible()
                     assert page.locator('#invoiceDetailRows tr').count()==3
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
-                    assert page.locator('#servedTotal').inner_text()=='2'
+                    assert page.locator('#servedTotal').inner_text()=='4'
+                    assert page.evaluate("segmentData.served.filter(record=>record.name==='Test Alpha').length")==3
+                    assert page.locator('#servedOrderValue').inner_text()=='₹600'
                     for _ in range(20):page.evaluate('installInvoiceWorkbook(invoiceWorkbook,invoiceWorkbook.filename)')
                     assert page.evaluate('backups.length')==10, 'IndexedDB retains all ten checkpoints beyond the localStorage quota'
+                    assert page.evaluate('segmentData.served.length')==4, 'Repeated invoice line items must remain separate served records'
                     page.reload();page.wait_for_function('invoiceWorkbook?.sheets.length===6')
                     page.evaluate("navigate('reports')")
                     assert page.locator('#invoiceDetailRows tr').count()==3
@@ -171,12 +176,16 @@ def check():
                     transfer=root/'transfer.json';download.value.save_as(transfer)
                     expected_transfer=page.evaluate('JSON.stringify({clients,calls,feedback,segmentData,sections:sectionRecords,invoiceWorkbook})')
                     page.set_viewport_size({'width':390,'height':844})
-                    assert page.locator('#mobileView').is_visible()
-                    page.select_option('#mobileView','served')
+                    assert page.locator('#navigationToggle').is_visible()
+                    page.click('#navigationToggle')
+                    assert page.locator('#mainNavigation').get_by_role('button',name='✓ Already Served').is_visible()
+                    page.locator('#mainNavigation .nav-item[data-view="served"]').click()
                     page.wait_for_function("currentView==='served' && document.getElementById('page-served').classList.contains('active')")
                     served_state=page.locator('#page-served').evaluate("element=>({display:getComputedStyle(element).display,visibility:getComputedStyle(element).visibility,height:element.getBoundingClientRect().height,dashboardDisplay:getComputedStyle(document.getElementById('page-dashboard')).display})")
                     assert served_state['display']!='none' and served_state['visibility']=='visible' and served_state['height']>0 and served_state['dashboardDisplay']=='none',served_state
-                    page.select_option('#mobileView','data');assert page.locator('#page-data').is_visible()
+                    page.click('#navigationToggle')
+                    page.locator('#mainNavigation .nav-item[data-view="data"]').click()
+                    assert page.locator('#page-data').is_visible()
                     assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
                     row=page.locator('#importRemovalRows tr').filter(has=page.locator('td').get_by_text('Categorized Items',exact=True))
                     row.get_by_role('button',name='Remove',exact=True).click()
@@ -208,7 +217,7 @@ def check():
                     assert p.evaluate('JSON.stringify(clients)')==seed['records']
                     assert p.evaluate("localStorage.getItem('hk_v2_clients')") is None
                     assert p.evaluate("localStorage.getItem('unrelated-0')")=='z'*100000
-                    p.set_input_files('#excelImportFile',str(fixture));p.wait_for_function('segmentData.served.length===2')
+                    p.set_input_files('#excelImportFile',str(fixture));p.wait_for_function('segmentData.served.length===4')
                     assert p.evaluate('clients.length')==1745
                     assert p.evaluate("JSON.stringify(clients.filter(client=>client.id.startsWith('legacy-')))")==seed['records']
                     assert p.evaluate('JSON.stringify(calls)')==seed['calls']
@@ -227,7 +236,7 @@ def check():
                     assert p.evaluate('backups[0].clients.length')==1743
                     p.reload();p.wait_for_function('invoiceWorkbook?.sheets.length===6')
                     assert p.evaluate('clients.length')==1745
-                    assert p.evaluate('segmentData.served.length')==2
+                    assert p.evaluate('segmentData.served.length')==4
                     assert p.evaluate("sectionRecords.leads[0].remark==='Independent lead edit' && sectionRecords.rghs[0].remark==='Independent RGHS edit' && clients[0].remark!=='Independent lead edit'")
                     # A second tab sees committed changes, rather than overwriting
                     # the first tab with an obsolete dataset after a reset.

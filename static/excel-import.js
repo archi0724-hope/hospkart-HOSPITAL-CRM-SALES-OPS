@@ -134,7 +134,7 @@ async function excelClientSheets(file) {
   if (isInvoiceWorkbook(workbook)) {
     await installInvoiceWorkbook(workbook, file.name);
     navigate('dashboard');
-    toast('Invoice workbook imported. All six worksheets are available on the dashboard.');
+    toast('Invoice workbook imported. All worksheets are available under Reports & Export.');
     return null;
   }
   const recognized = workbook.sheets.filter(sheetHasClientNames);

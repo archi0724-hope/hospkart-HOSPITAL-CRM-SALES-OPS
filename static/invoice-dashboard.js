@@ -7,7 +7,7 @@ function invoiceSheet(name) { return invoiceWorkbook?.sheets.find(sheet => sheet
 function isInvoiceWorkbook(workbook) { return workbook.sheets.some(sheet => sheet.name === 'Client Summary' && sheet.rows.some(row => invoiceKey(row) && row['Client / Hospital'])); }
 function uniqueInvoices(rows) { const seen = new Map(); rows.forEach(row => { if (invoiceKey(row) && !seen.has(invoiceKey(row))) seen.set(invoiceKey(row), row); }); return [...seen.values()]; }
 function invoiceDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
-function invoiceClientRecords(workbook) {
+function invoiceMasterRecords(workbook) {
   const rows = workbook.sheets.find(sheet => sheet.name === 'Client Summary')?.rows || [], groups = new Map();
   uniqueInvoices(rows).filter(row => !/cancel/i.test(row['Invoice Status'] || '')).forEach(row => {
     const key = invoiceClientKey(row); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row);
@@ -17,10 +17,76 @@ function invoiceClientRecords(workbook) {
     return {id: `HK-S${String(index+1).padStart(4,'0')}`, name: String(row['Client / Hospital']), city: String(row['Delivery City / Location'] || ''), district: '', state: '', type: invoices.length > 1 ? 'Repeat Client' : 'Previously Served Client', contact: '', mobile: String(invoices.find(entry => entry['Client Phone'])?.['Client Phone'] || ''), email: '', requirement: String(row['Next Requirement'] || ''), product: [...new Set(invoices.map(entry => entry['Items Purchased']).filter(Boolean))].join('; '), status: 'Feedback Pending', quote: 0, order: total, last: '', next: invoiceDate(row['Follow-up Date']), executive: '', remark: String(row['Notes'] || ''), priority: 'Medium', sourceData: {...row, 'Invoice count': invoices.length, 'Invoice numbers': invoices.map(entry => entry['Invoice No.']).join('; '), 'Recorded invoice value (₹)': total}, sourceInvoices: clone(invoices)};
   });
 }
+function invoiceClientRecords(workbook, previousRecords = []) {
+  const summaryRows = uniqueInvoices(workbook.sheets.find(sheet => sheet.name === 'Client Summary')?.rows || []);
+  const summaryByInvoice = new Map(summaryRows.map(row => [invoiceKey(row), row]));
+  const clientInvoices = new Map();
+  summaryRows.filter(row => !/cancel/i.test(row['Invoice Status'] || '')).forEach(row => {
+    const key = invoiceClientKey(row);
+    if (!clientInvoices.has(key)) clientInvoices.set(key, new Set());
+    clientInvoices.get(key).add(invoiceKey(row));
+  });
+  const detailRows = workbook.sheets.find(sheet => sheet.name === 'Client Call List')?.rows || [];
+  const rows = (detailRows.length ? detailRows : summaryRows).filter(row => invoiceKey(row) && row['Client / Hospital']);
+  const previousByDetail = new Map(), previousByInvoice = new Map(), detailOffsets = new Map();
+  previousRecords.forEach(record => {
+    if (record.sourceData?.['Invoice No.']) {
+      const detailKey = JSON.stringify(record.sourceData);
+      if (!previousByDetail.has(detailKey)) previousByDetail.set(detailKey, []);
+      previousByDetail.get(detailKey).push(record);
+    }
+    const invoices = record.sourceInvoices?.length ? record.sourceInvoices : [record.sourceData || {}];
+    invoices.forEach(invoice => {
+      if (!invoiceKey(invoice) || !invoice['Client / Hospital']) return;
+      const key = `${invoiceKey(invoice)}|${invoiceClientKey(invoice)}`;
+      if (!previousByInvoice.has(key)) previousByInvoice.set(key, record);
+    });
+  });
+  const assignedInvoices = new Set();
+  return rows.map((row, index) => {
+    const invoiceNo = invoiceKey(row), clientKey = invoiceClientKey(row), key = `${invoiceNo}|${clientKey}`;
+    const detailKey = JSON.stringify(row), matchingDetails = previousByDetail.get(detailKey) || [];
+    const previous = matchingDetails[detailOffsets.get(detailKey) || 0] || previousByInvoice.get(key);
+    detailOffsets.set(detailKey, (detailOffsets.get(detailKey) || 0) + 1);
+    const invoice = summaryByInvoice.get(invoiceNo) || row;
+    const firstInvoiceRow = !assignedInvoices.has(invoiceNo);
+    assignedInvoices.add(invoiceNo);
+    const invoiceValue = /cancel/i.test(invoice['Invoice Status'] || '') ? 0 : (invoiceNumber(invoice['Invoice Total (₹)']) || 0);
+    const preservedWork = {};
+    for (const field of ['workColor', 'workColorUpdatedAt', 'remark']) {
+      if (previous && Object.hasOwn(previous, field)) preservedWork[field] = previous[field];
+    }
+    const clientInvoiceCount = clientInvoices.get(clientKey)?.size || 0;
+    return {
+      id: `HK-S${String(index+1).padStart(4,'0')}`,
+      name: String(row['Client / Hospital']),
+      city: String(row['Delivery City / Location'] || ''),
+      district: '',
+      state: '',
+      type: clientInvoiceCount > 1 ? 'Repeat Client' : 'Previously Served Client',
+      contact: '',
+      mobile: String(row['Client Phone'] || ''),
+      email: '',
+      requirement: String(row['Next Requirement'] || ''),
+      product: String(row['Item Name'] || row['Items Purchased'] || ''),
+      status: 'Feedback Pending',
+      quote: 0,
+      order: firstInvoiceRow ? invoiceValue : 0,
+      last: '',
+      next: invoiceDate(row['Follow-up Date']),
+      executive: '',
+      remark: String(row['Notes'] || ''),
+      priority: 'Medium',
+      sourceData: {...row},
+      sourceInvoices: firstInvoiceRow ? [clone(invoice)] : [],
+      ...preservedWork
+    };
+  });
+}
 async function installInvoiceWorkbook(workbook, filename, backup = true) {
   const snapshot = {...workbook, filename};
   if(!validInvoiceSnapshot(snapshot))throw new Error('The workbook contains invalid worksheets. Import the Excel file again.');
-  const served=invoiceClientRecords(snapshot),merged=mergeImportedClients(clone(served));
+  const served=invoiceClientRecords(snapshot,segmentData.served),merged=mergeImportedClients(invoiceMasterRecords(snapshot));
   await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},sections:{...sectionRecords,served},invoiceWorkbook:snapshot},backup?'Before invoice workbook import':'');
 }
 async function loadInvoiceWorkbook(force = false) {
@@ -30,7 +96,11 @@ async function loadInvoiceWorkbook(force = false) {
     if (!force && saved !== null) {
       const snapshot=JSON.parse(saved);
       if(!validInvoiceSnapshot(snapshot))throw new Error('Saved invoice data is unreadable. Restore a JSON checkpoint or import the Excel file again.');
-      invoiceWorkbook=snapshot;renderInvoiceDashboard();return;
+      const served=invoiceClientRecords(snapshot,segmentData.served),merged=mergeImportedClients(invoiceMasterRecords(snapshot));
+      if(JSON.stringify(served)!==JSON.stringify(segmentData.served)||JSON.stringify(merged.rows)!==JSON.stringify(clients)) {
+        await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},sections:{...sectionRecords,served},invoiceWorkbook:snapshot},'');
+      } else {invoiceWorkbook=snapshot;renderInvoiceDashboard()}
+      return;
     }
     if (!force && dashboardStorage.get('hk_v2_reset_revision')) return;
     if(!force&&browserStorageProblem)return;
