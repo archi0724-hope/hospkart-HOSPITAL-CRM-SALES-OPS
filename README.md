@@ -127,6 +127,8 @@ Use **Import Excel** within **Already Served**, **Doctors**, or **Potential Lead
 
 Hospital names, list rows and follow-up cards show their work status: **red** for untouched records, **green** for connected calls or accepted outreach, **yellow** for calls that did not connect, and **blue** for queries or orders. Recorded query/quotation/order stages take priority over ordinary outreach in Automatic mode. Preparing a draft, queuing an email or opening WhatsApp does not count as completed outreach; email must be accepted by the sender before it turns a record green.
 
+The **Not Interested** pipeline status is available when updating a record and is shown with an orange badge; it does not change the record's separate work color.
+
 Use the color dropdown beside a hospital to set a manual color, or select **Automatic** to use saved activity again. A manual color stays in place after subsequent activity. **Remarks / color** opens the work-status editor; blue requires a remark describing the query or order. These controls are also available in Already Served, Doctors, and Potential Leads, where each imported section retains its own work status. The client form includes **Hospital work color** as well.
 
 Colors and remarks are saved in the current browser and included in JSON checkpoints. Main client Excel exports include the resolved work color, work status label and manual/automatic mode. Email activity is synchronized from the backend while the dashboard is open. Keep a checkpoint before clearing browser data or changing browsers.

@@ -60,7 +60,9 @@ def check():
                     page.goto(address)
                     page.wait_for_function('dashboardReady && !document.body.inert')
                     not_interested=page.evaluate("()=>{const node=document.createElement('div');node.innerHTML=badge('Not Interested');document.body.appendChild(node.firstElementChild);const style=getComputedStyle(document.body.lastElementChild);const result={className:document.body.lastElementChild.className,background:style.backgroundColor,color:style.color};document.body.lastElementChild.remove();return result}")
-                    assert not_interested=={'className':'status not-interested','background':'rgb(255, 240, 222)','color':'rgb(170, 93, 0)'},not_interested
+                    assert not_interested=={'className':'status not-interested','background':'rgb(255, 237, 213)','color':'rgb(194, 65, 12)'},not_interested
+                    assert page.locator('.work-tag.work-orange').inner_text()=='Orange: Not Interested'
+                    assert page.locator('#newStatus option').all_inner_texts().count('Not Interested')==1
                     assert page.locator('#navClients').inner_text()=='10'
                     sections=page.evaluate("Array.from(document.querySelectorAll('.workspace-page'),section=>({id:section.id,title:section.querySelector('h2')?.innerText,parent:section.parentElement.id}))")
                     assert all(section['parent']!='page-dashboard' for section in sections),sections
