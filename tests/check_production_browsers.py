@@ -62,7 +62,12 @@ def check():
                     assert page.locator('#page-dashboard').get_by_role('heading',name='Follow-ups',exact=True).count()==0
                     assert page.locator('#navigationToggle').is_visible()
                     color_options=page.locator('.work-color-select').first.locator('option').all_inner_texts()
-                    assert 'Follow status' in color_options and 'Automatic — Untouched' not in color_options,color_options
+                    assert color_options[0]=='—' and 'Follow status' not in color_options and 'Automatic — Untouched' not in color_options,color_options
+                    default_color=page.locator('.work-color-select').first.evaluate("""element=>{
+                      const selectStyle=getComputedStyle(element),untouched=document.querySelector('.work-tag.work-red'),tagStyle=getComputedStyle(untouched);
+                      return {selectedValue:element.value,selectColor:selectStyle.color,selectBackground:selectStyle.backgroundColor,tagColor:tagStyle.color,tagBackground:tagStyle.backgroundColor};
+                    }""")
+                    assert default_color=={'selectedValue':'','selectColor':'rgb(255, 255, 255)','selectBackground':'rgb(100, 116, 139)','tagColor':'rgb(255, 255, 255)','tagBackground':'rgb(100, 116, 139)'},default_color
                     not_interested=page.evaluate("()=>{const node=document.createElement('div');node.innerHTML=badge('Not Interested');document.body.appendChild(node.firstElementChild);const style=getComputedStyle(document.body.lastElementChild);const result={className:document.body.lastElementChild.className,background:style.backgroundColor,color:style.color};document.body.lastElementChild.remove();return result}")
                     assert not_interested=={'className':'status not-interested','background':'rgb(255, 140, 0)','color':'rgb(255, 255, 255)'},not_interested
                     assert page.locator('.work-tag.work-orange').inner_text()=='Orange: Not Interested'

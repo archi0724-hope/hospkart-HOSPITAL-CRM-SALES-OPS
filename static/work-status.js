@@ -102,7 +102,7 @@ function findWorkRecordForScope(scope) {
 }
 
 function workColorOptions(record, scope = 'clients') {
-  return `<option value=""${record.workColor ? '' : ' selected'}>Follow status</option>` + Object.entries(workColors).map(([color, label]) => `<option value="${color}"${record.workColor === color ? ' selected' : ''}>${color[0].toUpperCase() + color.slice(1)} — ${label}</option>`).join('');
+  return `<option value=""${record.workColor ? '' : ' selected'}>—</option>` + Object.entries(workColors).map(([color, label]) => `<option value="${color}"${record.workColor === color ? ' selected' : ''}>${color[0].toUpperCase() + color.slice(1)} — ${label}</option>`).join('');
 }
 
 function workStatusControl(record, scope = 'clients') {
