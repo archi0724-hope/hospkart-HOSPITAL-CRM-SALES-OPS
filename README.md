@@ -220,6 +220,51 @@ Before using this as your live HOSPkart CRM:
 6. Connect quotation/order data to your real source rather than allowing the AI to infer it.
 7. Use an external job worker/scheduler for production scale rather than an in-process scheduler.
 
+## Team training (35 minutes)
+
+Use a separate browser profile and fictional records for practice. Keep the live dashboard in its existing browser and site address. Start with the Windows launch script or `python production.py`; open the server URL instead of the HTML file. Download a full JSON checkpoint before practising with existing records. Practice messages should remain drafts.
+
+| Time | Exercise | What the trainee should check |
+| --- | --- | --- |
+| 5 minutes | Open navigation and visit Dashboard, Hospitals & Clients, RGHS, Already Served, Doctors, Potential Leads, and Leads & Queries. | Each workspace has its own records. Dashboard combines them; linked copies count separately. |
+| 7 minutes | Import a practice Excel file into its intended workspace. If prompted, select the worksheet, header row and name column. | Preview names and columns before confirming. Refresh and confirm that the saved rows remain. |
+| 7 minutes | Add or edit a practice lead, save a calling note, add a next follow-up date, and change work color with a remark. | The record appears in the correct stage. Call history survives refresh. A blue record has a useful remark. |
+| 5 minutes | Open Reports & Export and compare invoice analysis with the Already Served page. | Served entries and distinct hospitals are different counts; invoice totals are counted once per invoice. |
+| 5 minutes | Download a JSON checkpoint; restore it in another practice browser/profile. | Counts, remarks, worksheets and call history match. Excel export is useful for reporting; JSON is the full restore file. |
+| 6 minutes | Ask SmartBot for a summary and a selected-hospital follow-up draft. | Check the counts against the UI and review the draft before sending it yourself. |
+
+**Daily routine:** open Calling & Follow-up, review overdue and due-today records, record the outcome and next action, update the appropriate workspace, then download a JSON checkpoint at the end of the working day. Edits to independent lead/RGHS/Potential Leads copies do not automatically edit the Hospital & Clients master.
+
+**Work colors:** red means untouched, yellow means a call did not connect, green means completed outreach, and blue means a query/follow-up/order. Green source records can create a linked Potential Leads copy. Orange labels Not Interested. Neon names identify duplicates across the workspace records; they do not prove duplicate invoices or incorrect data.
+
+**Admin practice:** in a separate practice profile, open Data & backups → Manage imported Excel data, choose one worksheet or section, enter the configured admin password and the displayed `REMOVE …` phrase. Verify that other worksheets, records, calls and feedback remain. Restore the safety checkpoint to practise recovery. The dashboard reset clears all browser records/checkpoints and server messaging history; do not use it to remove one Excel sheet or as a training cleanup step on the live server.
+
+**Understanding the supplied invoice workbook:** the verified workbook has 38 distinct hospitals/clients, 61 non-cancelled invoices, 202 non-cancelled served item entries and ₹31,35,013.91 in invoice value. The cancelled sheet has 152 item rows representing 6 invoices. The Already Served entry headcount is 202; 38 is its distinct-client count. Counts describe this workbook, not every future upload. The overall workspace headcount can exceed both because it includes records and linked copies from all workspaces.
+
+## SmartBot response training
+
+SmartBot receives a fresh, bounded summary of all six workspaces, distinct-client counts, invoice metrics, the selected hospital and up to 12 follow-up records. Full follow-up queue counts are supplied separately. Large contexts are shortened as valid JSON with an explicit truncation flag. Invoice analysis covers all available invoice source rows; it does not automatically inherit the dashboard table filters.
+
+The response instructions teach the assistant to name the workspace, distinguish served entries from distinct clients, avoid double-counting invoice value, explain unavailable sources, and ask for a selected hospital before drafting a hospital-specific message. Spreadsheet cells and remarks are treated as data rather than instructions. Chat provides guidance and drafts; record changes, message sending, import deletion and reset require the application's own controls.
+
+| Practice prompt | Expected response to review |
+| --- | --- |
+| “Summarize all workspaces and overdue follow-ups.” | Workspace-specific counts, full queue totals, and a clearly limited sample of follow-ups. |
+| “Why are served entries different from hospital counts?” | Multiple invoice item entries can belong to one hospital; workspace copies can also increase overall headcount. |
+| “Draft a quotation follow-up for the selected hospital.” | A short draft based on its recorded requirement and status, without invented price or dispatch promises. |
+| “Delete only one Excel worksheet.” | Instructions for the admin removal controls, with no claim that chat deleted anything. |
+| “Confirm that my message was sent.” | No invented send confirmation; verify the application's messaging status. |
+
+This improves runtime instructions and data context; it does not fine-tune model weights. OpenAI configuration and billing are required for live replies. The automated suite checks context transmission, parsing, error handling and instructions using mocked provider responses; it does not prove the quality of every live model response. Review real drafts and totals before acting on them.
+
+## Verification record — 9 October 2026
+
+43 backend tests passed. Actual Chrome and Edge checks passed against Waitress using isolated synthetic data, including 20 repeated imports per browser, full legacy storage with 1,743 clients, save rollback, failed migration recovery, emergency JSON export, cross-browser transfer, mobile navigation, admin removal, reset across tabs and SmartBot chat/context transmission. Private workbook checks also passed for invoice calculations, re-import, grouped-record migration, reload, exports and scoped removal/restoration.
+
+The private workbook tests use temporary databases and prepared workbook copies. They do not re-seed or reset the live dashboard. To run them without creating a live server workbook, set `HOSPKART_TEST_WORKBOOK` to the private Excel path, then run `python tests/check_invoice_dashboard.py` and `python tests/check_import_removal.py`. Without that variable, the scripts copy an existing local prepared workbook into temporary test storage. Customer workbook contents remain excluded from Git. No customer email or WhatsApp message was sent during these checks; the live OpenAI provider was not called.
+
+The requested logo background uses the built-in image editor. Edit prompt: replace only the background with a vertical gradient from #9FA8DA through #F8BBD0 to #FFE0B2, preserving the logo, wording and full 2048 × 768 layout. The installed asset is `static/hospkart-logo-banner.png`.
+
 ## Attribution
 
 SmartBot concept adapted from:

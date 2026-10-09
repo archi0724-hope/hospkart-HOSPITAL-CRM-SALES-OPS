@@ -10,12 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app
 from playwright.sync_api import sync_playwright
 from werkzeug.serving import make_server
+from workbook_fixture import prepare_test_workbook
 
 
 def check():
     with tempfile.TemporaryDirectory() as temp:
-        app.DB_PATH = Path(temp) / 'test.db'
-        app.init_db()
+        snapshot = prepare_test_workbook(temp)
         server = make_server('127.0.0.1', 5011, app.app)
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -84,7 +84,6 @@ def check():
                 from openpyxl import Workbook
                 imported = Workbook()
                 imported.remove(imported.active)
-                snapshot = json.loads((Path(__file__).resolve().parents[1] / 'data' / 'imported_invoice_workbook.json').read_text(encoding='utf-8'))
                 for sheet in snapshot['workbook']['sheets']:
                     worksheet = imported.create_sheet(sheet['name'])
                     columns = list(sheet['rows'][0])

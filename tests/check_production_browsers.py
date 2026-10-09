@@ -134,6 +134,26 @@ def check():
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     page.evaluate("navigate('served')")
                     assert page.locator('#servedTotal').inner_text()=='4'
+                    bot_context=page.evaluate('clientContext(clients[0].id)')
+                    assert bot_context['kpis']['workspace_records']==page.evaluate('workspaceRecords().length')
+                    assert bot_context['workspaces']['served']['records']==4
+                    assert bot_context['workspaces']['served']['distinct_clients']==2
+                    assert bot_context['invoice_analysis']['invoice_count']==3
+                    assert bot_context['invoice_analysis']['distinct_clients']==2
+                    assert bot_context['invoice_analysis']['invoice_value']==600
+                    assert bot_context['selected_client']['name']==page.evaluate('clients[0].name')
+                    chat_requests=[]
+                    def respond_to_chat(route):
+                        chat_requests.append(route.request.post_data_json)
+                        route.fulfill(json={'ok':True,'reply':'Synthetic SmartBot check: 4 served entries, 2 clients, 3 invoices.'})
+                    page.route('**/api/chat',respond_to_chat)
+                    page.evaluate("toggleChat(true)")
+                    page.fill('#chatInput','Explain served entries and distinct clients')
+                    page.click('.chat-send')
+                    page.locator('.chat-msg.bot').get_by_text('Synthetic SmartBot check: 4 served entries, 2 clients, 3 invoices.',exact=True).wait_for()
+                    assert chat_requests[-1]['context']['invoice_analysis']['invoice_value']==600
+                    page.evaluate('toggleChat(false)')
+                    page.unroute('**/api/chat',respond_to_chat)
                     assert page.evaluate("segmentData.served.filter(record=>record.name==='Test Alpha').length")==3
                     assert page.locator('#servedOrderValue').inner_text()=='₹600'
                     assert page.locator('#servedDistinctClients').inner_text()=='2'

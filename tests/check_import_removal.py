@@ -9,13 +9,12 @@ import app
 from playwright.sync_api import sync_playwright
 from werkzeug.security import generate_password_hash
 from werkzeug.serving import make_server
+from workbook_fixture import prepare_test_workbook
 
 
 def check():
     with tempfile.TemporaryDirectory() as temp:
-        app.DB_PATH = Path(temp) / 'test.db'
-        app.ADMIN_PASSWORD_PATH = Path(temp) / 'admin.hash'
-        app.init_db()
+        prepare_test_workbook(temp)
         app.admin_attempts.clear()
         password = 'browser-test-admin-only'
         server = make_server('127.0.0.1', 5012, app.app)
