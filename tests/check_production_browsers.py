@@ -61,6 +61,8 @@ def check():
                     page.wait_for_function('dashboardReady && !document.body.inert')
                     assert page.locator('#page-dashboard').get_by_role('heading',name='Follow-ups',exact=True).count()==0
                     assert page.locator('#navigationToggle').is_visible()
+                    color_options=page.locator('.work-color-select').first.locator('option').all_inner_texts()
+                    assert 'Follow status' in color_options and 'Automatic — Untouched' not in color_options,color_options
                     not_interested=page.evaluate("()=>{const node=document.createElement('div');node.innerHTML=badge('Not Interested');document.body.appendChild(node.firstElementChild);const style=getComputedStyle(document.body.lastElementChild);const result={className:document.body.lastElementChild.className,background:style.backgroundColor,color:style.color};document.body.lastElementChild.remove();return result}")
                     assert not_interested=={'className':'status not-interested','background':'rgb(255, 140, 0)','color':'rgb(255, 255, 255)'},not_interested
                     assert page.locator('.work-tag.work-orange').inner_text()=='Orange: Not Interested'
@@ -103,7 +105,7 @@ def check():
                       try{await persistRghs();renderRghsPage();renderDashboard();return {count:document.getElementById('rghsTotal').textContent,shown:document.getElementById('rghsRows').innerText.includes(fixture.name),masterUnchanged:master===JSON.stringify(clients),stored:JSON.parse(dashboardStorage.get('hk_v2_rghs')).some(record=>record.id===fixture.id),overallIncludes:document.getElementById('clientRows').innerText.includes(fixture.name)&&document.getElementById('clientRows').innerText.includes('RGHS Data'),overallCount:Number(document.getElementById('kpiClients').textContent),workspaceCount:workspaceRecords().length}}
                       finally{sectionRecords.rghs.pop();await persistRghs();renderRghsPage();renderDashboard()}
                     }""")
-                    assert rghs['count'].endswith('records') and rghs['shown'] and rghs['masterUnchanged'] and rghs['stored'] and rghs['overallIncludes'] and rghs['overallCount']==rghs['workspaceCount'],rghs
+                    assert rghs['count']=='1' and rghs['shown'] and rghs['masterUnchanged'] and rghs['stored'] and rghs['overallIncludes'] and rghs['overallCount']==rghs['workspaceCount'],rghs
                     page.click('button[onclick="loadInvoiceWorkbook(true)"]')
                     page.locator('#toast').get_by_text('No workbook is stored on this server. Use Import Excel to load your file.',exact=True).wait_for()
                     if transfer:
@@ -118,16 +120,31 @@ def check():
                     page.evaluate("navigate('dashboard')")
                     assert page.locator('#page-dashboard').is_visible()
                     assert page.locator('#kpiClients').inner_text().strip()!='0'
-                    assert page.get_by_text('Hospital / Client Headcount',exact=True).is_visible()
+                    assert page.get_by_text('All-Workspace Record Headcount',exact=True).is_visible()
                     assert page.locator('#page-dashboard #invoiceDashboard').count()==0
                     assert page.evaluate("Array.from(document.querySelectorAll('.workspace-page')).every(section=>section.parentElement.id!=='page-dashboard'&&!section.classList.contains('hidden'))"),'Workspaces should remain separate pages when an invoice workbook is loaded'
                     page.evaluate("navigate('reports')")
                     assert page.locator('#invoiceDashboard').is_visible()
                     assert page.locator('#invoiceDetailRows tr').count()==3
                     assert '₹600' in page.locator('#invoiceMetrics').inner_text()
+                    page.evaluate("navigate('served')")
                     assert page.locator('#servedTotal').inner_text()=='4'
                     assert page.evaluate("segmentData.served.filter(record=>record.name==='Test Alpha').length")==3
                     assert page.locator('#servedOrderValue').inner_text()=='₹600'
+                    assert page.locator('#servedDistinctClients').inner_text()=='2'
+                    assert page.locator('#servedVisibleCount').inner_text()=='Showing 4 of 4 served entries'
+                    page.fill('#servedSearch','Test Alpha')
+                    assert page.locator('#servedVisibleCount').inner_text()=='Showing 3 of 4 served entries'
+                    assert page.locator('#servedTotal').inner_text()=='4','Search must not change the page-wide headcount'
+                    page.fill('#servedSearch','')
+                    page.evaluate("navigate('dashboard')")
+                    before_filter=page.locator('#kpiClients').inner_text()
+                    page.fill('#search','Test Alpha')
+                    assert page.locator('#kpiClients').inner_text()==before_filter,'Dashboard filters must not change the all-workspace headcount'
+                    assert page.locator('#resultCount').inner_text().startswith('Showing ')
+                    page.fill('#search','')
+                    assert page.locator('#kpiClients').inner_text()==before_filter
+                    page.evaluate("navigate('reports')")
                     for _ in range(20):page.evaluate('installInvoiceWorkbook(invoiceWorkbook,invoiceWorkbook.filename)')
                     assert page.evaluate('backups.length')==10, 'IndexedDB retains all ten checkpoints beyond the localStorage quota'
                     assert page.evaluate('segmentData.served.length')==4, 'Repeated invoice line items must remain separate served records'

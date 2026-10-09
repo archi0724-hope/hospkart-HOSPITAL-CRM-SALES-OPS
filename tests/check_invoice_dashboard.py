@@ -29,7 +29,7 @@ def check():
                 assert page.locator('#page-dashboard').is_visible()
                 assert page.locator('#invoiceDashboard').count() == 1
                 assert page.locator('#page-dashboard #invoiceDashboard').count() == 0
-                assert page.get_by_text('Hospital / Client Headcount', exact=True).is_visible()
+                assert page.get_by_text('All-Workspace Record Headcount', exact=True).is_visible()
                 assert page.locator('#kpiClients').inner_text().strip() != '0'
                 page.evaluate("navigate('reports')")
                 assert page.locator('#invoiceDashboard').is_visible()
