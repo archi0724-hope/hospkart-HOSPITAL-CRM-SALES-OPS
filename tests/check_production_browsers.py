@@ -115,15 +115,13 @@ def check():
                         page.wait_for_function('invoiceWorkbook?.sheets.length===6')
                     page.evaluate("navigate('dashboard')")
                     assert page.evaluate("Array.from(document.querySelectorAll('.workspace-page')).every(section=>section.parentElement.id!=='page-dashboard'&&!section.classList.contains('hidden'))"),'Workspaces should remain separate pages when an invoice workbook is loaded'
-                    assert page.locator('#page-dashboard').is_visible() and page.locator('#clientRows').is_visible()
-                    assert page.locator('#invoiceDashboard,#invoiceMetrics,#invoiceDetailRows').count()==0
-                    assert page.evaluate("invoiceSheet('Client Summary').reduce((sum,row)=>sum+row['Invoice Total (₹)'],0)")==600
+                    assert page.locator('#invoiceDetailRows tr').count()==3
+                    assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert page.locator('#servedTotal').inner_text()=='2'
                     for _ in range(20):page.evaluate('installInvoiceWorkbook(invoiceWorkbook,invoiceWorkbook.filename)')
                     assert page.evaluate('backups.length')==10, 'IndexedDB retains all ten checkpoints beyond the localStorage quota'
                     page.reload();page.wait_for_function('invoiceWorkbook?.sheets.length===6')
-                    assert page.locator('#invoiceDashboard,#invoiceMetrics,#invoiceDetailRows').count()==0
-                    assert page.evaluate("JSON.parse(dashboardStorage.get('hk_v2_invoice_workbook')).sheets.length")==6
+                    assert page.locator('#invoiceDetailRows tr').count()==3
                     # A write failure must roll back active data and its checkpoint.
                     rollback=page.evaluate("""async()=>{
                       const keys=['hk_v2_clients','hk_v2_calls','hk_v2_feedback','hk_v2_segments','hk_v2_invoice_workbook','hk_v2_backups'];
@@ -172,8 +170,7 @@ def check():
                     row.get_by_role('button',name='Remove',exact=True).click()
                     page.fill('#importRemovalPassword',password);page.fill('#importRemovalConfirmation','REMOVE Categorized Items');page.click('#importRemovalSubmit')
                     page.wait_for_function('invoiceWorkbook.sheets.length===5')
-                    assert page.locator('#invoiceDashboard,#invoiceMetrics,#invoiceDetailRows').count()==0
-                    assert page.evaluate("JSON.parse(dashboardStorage.get('hk_v2_invoice_workbook')).sheets.length")==5
+                    assert '₹600' in page.locator('#invoiceMetrics').inner_text()
                     assert not errors,errors
                     base_record=page.evaluate('originalClients[1]')
                     context.close()

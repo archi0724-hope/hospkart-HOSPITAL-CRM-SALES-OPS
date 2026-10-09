@@ -1,2 +1,11 @@
+.invoice-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.invoice-bars{max-height:300px;overflow:auto;display:grid;gap:12px}
+.invoice-bar-label{display:flex;justify-content:space-between;gap:16px;font-size:12px;margin-bottom:5px}
+.invoice-bar-label span{overflow-wrap:anywhere;min-width:0}.invoice-bar-label strong{white-space:nowrap}
+.invoice-bar-track{height:8px;background:#edf1f6;border-radius:4px}.invoice-bar-track div{height:100%;background:#246aa5;border-radius:4px}
+#invoiceDashboard .toolbar-actions{flex-wrap:wrap}#invoiceDashboard .table-wrap{max-height:600px;overflow:auto}
+#invoiceDashboard th{position:sticky;top:0;z-index:1}#invoiceDashboard td{max-width:380px;min-width:100px;white-space:normal;overflow-wrap:anywhere}
+#invoiceDashboard table{width:max-content;min-width:100%;table-layout:fixed}#invoiceDashboard td{width:200px;max-width:260px}#invoiceDashboard .control{width:auto;min-width:150px}
+@media(max-width:800px){.invoice-chart-grid{grid-template-columns:1fr}#invoiceDashboard .control{max-width:100%}}
 .mobile-menu{display:none}
 @media(max-width:900px){.mobile-menu{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#fff;border-bottom:1px solid var(--border)}.mobile-menu label{font-size:12px;font-weight:800}.topbar{height:auto;min-height:70px;gap:10px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}.top-actions{gap:6px}.title-wrap h1{font-size:17px}}

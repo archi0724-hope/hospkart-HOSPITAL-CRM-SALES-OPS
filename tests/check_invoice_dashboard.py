@@ -1,4 +1,4 @@
-"""End-to-end regression checks for stored invoice workbooks and the Dashboard."""
+"""End-to-end regression checks against the supplied workbook and local Flask app."""
 import json
 import os
 import sys
@@ -21,28 +21,43 @@ def check():
         thread.start()
         try:
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(channel=os.getenv('BROWSER_CHANNEL', 'chrome'))
+                browser = playwright.chromium.launch(channel=os.getenv('BROWSER_CHANNEL','chrome'))
                 page = browser.new_page(viewport={'width': 1440, 'height': 1000})
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto('http://127.0.0.1:5011')
-                page.wait_for_function("invoiceWorkbook?.sheets.length === 6")
-                assert page.locator('#page-dashboard').is_visible()
-                assert page.locator('#clientRows').is_visible()
-                assert page.locator('#invoiceMetrics, #invoiceDetailRows, #invoiceDashboard').count() == 0
+                page.locator('#invoiceMetrics').get_by_text('38', exact=True).wait_for()
+                metrics = page.locator('#invoiceMetrics').inner_text()
+                assert '61' in metrics and '202' in metrics and '6' in metrics, metrics
+                assert page.locator('#invoiceDetailRows tr').count() == 61
                 assert page.locator('#servedTotal').inner_text() == '38'
                 actual = page.evaluate("invoiceSheet('Client Summary').reduce((sum,row)=>sum+row['Invoice Total (₹)'],0)")
                 assert round(actual, 2) == 3135013.91, actual
-                stored = page.evaluate("JSON.parse(dashboardStorage.get('hk_v2_invoice_workbook'))")
-                assert stored['sheets'] == page.evaluate('invoiceWorkbook.sheets')
-                assert len(stored['sheets']) == 6
+                page.select_option('#invoiceDetailSheet', 'Client Call List')
+                assert page.locator('#invoiceDetailRows tr').count() == 202
+                assert page.locator('#invoiceDetailHead th').count() == 31
+                page.select_option('#invoiceDetailSheet', 'Cancelled Invoices')
+                assert page.locator('#invoiceDetailRows tr').count() == 152
+                page.select_option('#invoiceStatus', 'Paid')
+                assert page.evaluate("uniqueInvoices(invoiceSheet('Client Summary')).filter(row=>row['Invoice Status']==='Paid').length") == 22
+                assert '22' in page.locator('#invoiceMetrics').inner_text()
+                page.click('button[onclick="clearInvoiceFilters()"]')
+                page.select_option('#invoiceDetailSheet', 'Client Summary')
+                with page.expect_download() as download:
+                    page.click('button[onclick="exportInvoiceDetails()"]')
+                assert download.value.suggested_filename.endswith('.xls')
+                page.fill('#invoiceSearch', 'nothing-matches-this-query')
+                assert 'No matching records.' in page.locator('#invoiceDetailRows').inner_text()
+                assert '₹0' not in page.locator('#invoiceMetrics').inner_text()
+                page.click('button[onclick="clearInvoiceFilters()"]')
                 page.reload()
-                page.wait_for_function("invoiceWorkbook?.sheets.length === 6")
-                assert page.locator('#invoiceMetrics, #invoiceDetailRows, #invoiceDashboard').count() == 0
-                assert page.locator('#clientRows').is_visible()
-                assert page.evaluate("JSON.parse(dashboardStorage.get('hk_v2_invoice_workbook')).sheets.length") == 6
+                page.locator('#invoiceMetrics').get_by_text('38', exact=True).wait_for()
+                output = Path(__file__).resolve().parents[1] / 'data' / 'invoice-dashboard-desktop.png'
+                page.screenshot(path=str(output), full_page=True)
+                page.set_viewport_size({'width': 390, 'height': 844})
+                page.screenshot(path=str(output.with_name('invoice-dashboard-mobile.png')), full_page=True)
                 assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile page overflows'
-                # Re-import must retain all sheets without duplicating client records.
+                # Re-import must retain all rows and not duplicate client master records.
                 before = page.evaluate('clients.length')
                 from openpyxl import Workbook
                 imported = Workbook()
@@ -61,15 +76,14 @@ def check():
                 page.wait_for_function("invoiceWorkbook.filename === 'invoice-reimport.xlsx'")
                 assert page.evaluate('clients.length') == before
                 assert page.locator('#servedTotal').inner_text() == '38'
-                assert page.locator('#invoiceMetrics, #invoiceDetailRows, #invoiceDashboard').count() == 0
-                # Reset suppression clears the browser copy without displaying analytics.
+                # Reset suppression must persist across reloads.
                 page.evaluate("writeDashboardValues({hk_v2_invoice_workbook:null,hk_v2_reset_revision:'test'})")
                 page.reload()
                 page.wait_for_timeout(500)
-                assert page.locator('#invoiceMetrics, #invoiceDetailRows, #invoiceDashboard').count() == 0
+                assert page.locator('#invoiceDashboard').is_hidden()
                 assert not errors, errors
                 browser.close()
-                print(json.dumps({'passed': True, 'clients': 38, 'workbook_sheets': 6, 'invoice_value': actual, 'browser_errors': errors}))
+                print(json.dumps({'passed': True, 'clients': 38, 'invoices': 61, 'item_rows': 202, 'cancelled_item_rows': 152, 'invoice_value': actual, 'browser_errors': errors}))
         finally:
             server.shutdown()
             app.scheduler.shutdown(wait=False)
