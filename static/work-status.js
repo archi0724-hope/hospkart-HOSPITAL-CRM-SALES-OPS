@@ -1,7 +1,8 @@
 const workColors = {
-  red: 'Untouched', green: 'Outreach completed', yellow: 'Call not connected', blue: 'Order / query received'
+  red: 'Untouched', green: 'Outreach completed', yellow: 'Call not connected', blue: 'Queries and follow-ups / orders'
 };
-const blueWorkStages = ['Query Received', 'Quotation Shared', 'Negotiation', 'PO / Order Confirmed', 'Delivered', 'Feedback Pending', 'Completed / Served'];
+const blueWorkStages = ['Query Received', 'Quotation Shared', 'Follow-up Required', 'Negotiation', 'PO / Order Confirmed', 'Demand Fulfilled', 'Order Finalized', 'Delivered', 'Feedback Pending', 'Completed / Served'];
+let duplicateWorkRecords = new Set();
 
 function findWorkRecord(id, scope = 'clients') {
   const records=scope==='clients'?clients:scope==='leads'?sectionRecords.leads:scope==='rghs'?sectionRecords.rghs:segmentData[scope]||[];
@@ -25,7 +26,85 @@ function workColor(record, scope = 'clients') {
 }
 
 function workRowAttributes(record, scope = 'clients') {
-  return `class="work-${workColor(record, scope)}" data-work-record="${escapeHtml(record.id)}" data-work-scope="${escapeHtml(scope)}"`;
+  return `class="work-${workColor(record, scope)}${isDuplicateRecord(record, scope) ? ' duplicate-record' : ''}" data-work-record="${escapeHtml(record.id)}" data-work-scope="${escapeHtml(scope)}"`;
+}
+
+function isDuplicateRecord(record, scope = 'clients') {
+  return duplicateWorkRecords.has(`${scope}:${record.id}`);
+}
+
+function duplicateNameKey(value) {
+  return String(value || '').normalize('NFKC').trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+function refreshDuplicateWorkRecords() {
+  duplicateWorkRecords = new Set();
+  const groups = new Map();
+  for (const record of workspaceRecords()) {
+    const name = duplicateNameKey(record.name);
+    if (!name) continue;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(record);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    if (group.length === 2) {
+      const [first, second] = group;
+      const linkedCopy = (first.sourceWorkspace === second.workspaceScope && first.sourceRecordId === second.id)
+        || (second.sourceWorkspace === first.workspaceScope && second.sourceRecordId === first.id);
+      if (linkedCopy) continue;
+    }
+    for (const record of group) duplicateWorkRecords.add(`${record.workspaceScope}:${record.id}`);
+  }
+}
+
+function copyToPotentialLead(record, scope, sourceKeys) {
+  if (!record || !['clients', 'leads', 'rghs'].includes(scope) || workColor(record, scope) !== 'green') return false;
+  if (['Not Interested', 'Lost / Cancelled'].includes(record.status)) return false;
+  const sourceKey = `${scope}:${record.id}`;
+  if (sourceKeys.has(sourceKey)) return false;
+  const nextNo = Math.max(0, ...segmentData.potential.map(item => Number((item.id.match(/\d+/) || ['0'])[0]))) + 1;
+  const sourceData = {
+    ...(record.sourceData || {}),
+    'Lead Status': record.status || '',
+    'Query / Requirement': record.requirement || '',
+    'Product Name': record.product || '',
+    'City': record.city || '',
+    'Contact Person': record.contact || '',
+    'Mobile Number': record.mobile || '',
+    'Email': record.email || '',
+    'Assigned Executive': record.executive || '',
+    'Latest Remark': record.remark || '',
+    'Source Workspace': scope
+  };
+  segmentData.potential.push({
+    ...clone(record),
+    id: 'HK-P' + String(nextNo).padStart(4, '0'),
+    sourceWorkspace: scope,
+    sourceRecordId: record.id,
+    workColor: 'green',
+    sourceData
+  });
+  sourceKeys.add(sourceKey);
+  return true;
+}
+
+async function routeGreenPotentialLeads(scope) {
+  const sources = scope ? [[scope, findWorkRecordForScope(scope)]] : [
+    ['clients', clients], ['leads', sectionRecords.leads], ['rghs', sectionRecords.rghs]
+  ];
+  const sourceKeys = new Set(segmentData.potential.map(item => `${item.sourceWorkspace}:${item.sourceRecordId}`));
+  let changed = false;
+  for (const [sourceScope, records] of sources) {
+    for (const record of Array.isArray(records) ? records : records ? [records] : []) {
+      changed = copyToPotentialLead(record, sourceScope, sourceKeys) || changed;
+    }
+  }
+  if (changed) await persistSegments();
+}
+
+function findWorkRecordForScope(scope) {
+  return scope === 'clients' ? clients : scope === 'leads' ? sectionRecords.leads : scope === 'rghs' ? sectionRecords.rghs : [];
 }
 
 function workColorOptions(record, scope = 'clients') {
@@ -38,6 +117,7 @@ function workStatusControl(record, scope = 'clients') {
 }
 
 async function saveWorkRecords(scope) {
+  await routeGreenPotentialLeads(scope);
   if (scope === 'clients') await persist();
   else if (scope === 'leads') await persistLeads();
   else if (scope === 'rghs') await persistRghs();
@@ -81,7 +161,7 @@ function updateWorkRemarkRequirement() {
   const chosen = document.getElementById('workRecordColor').value;
   const required = chosen === 'blue' || (!chosen && record && automaticWorkColor(record, scope) === 'blue');
   document.getElementById('workRecordRemark').required = required;
-  document.getElementById('workRemarkLabel').textContent = required ? 'Remarks (required for order / query)' : 'Remarks';
+  document.getElementById('workRemarkLabel').textContent = required ? 'Remarks (required for query / follow-up / order)' : 'Remarks';
 }
 
 async function saveWorkStatus(event) {
@@ -92,7 +172,7 @@ async function saveWorkStatus(event) {
   if (!record) return;
   updateWorkRemarkRequirement();
   const remark = document.getElementById('workRecordRemark').value.trim();
-  if (document.getElementById('workRecordRemark').required && !remark) { toast('Add a remark describing the order or query.'); return; }
+  if (document.getElementById('workRecordRemark').required && !remark) { toast('Add a remark describing the query, follow-up, or order.'); return; }
   record.workColor = document.getElementById('workRecordColor').value;
   record.remark = remark;
   record.workColorUpdatedAt = new Date().toISOString();
@@ -135,7 +215,7 @@ async function syncEmailWorkStatus(items) {
       }
     });
   });
-  if (changed) { await persist(); if (currentView !== 'email') renderAll(); }
+  if (changed) { await routeGreenPotentialLeads('clients'); await persist(); if (currentView !== 'email') renderAll(); }
 }
 
 async function refreshWorkEmailStatus() {

@@ -60,9 +60,24 @@ def check():
                     page.goto(address)
                     page.wait_for_function('dashboardReady && !document.body.inert')
                     not_interested=page.evaluate("()=>{const node=document.createElement('div');node.innerHTML=badge('Not Interested');document.body.appendChild(node.firstElementChild);const style=getComputedStyle(document.body.lastElementChild);const result={className:document.body.lastElementChild.className,background:style.backgroundColor,color:style.color};document.body.lastElementChild.remove();return result}")
-                    assert not_interested=={'className':'status not-interested','background':'rgb(255, 237, 213)','color':'rgb(194, 65, 12)'},not_interested
+                    assert not_interested=={'className':'status not-interested','background':'rgb(255, 140, 0)','color':'rgb(255, 255, 255)'},not_interested
                     assert page.locator('.work-tag.work-orange').inner_text()=='Orange: Not Interested'
+                    assert page.locator('.work-legend .duplicate-neon').inner_text()=='Neon: duplicate records'
                     assert page.locator('#newStatus option').all_inner_texts().count('Not Interested')==1
+                    assert {'Demand Fulfilled','Order Finalized'}.issubset(set(page.locator('#newStatus option').all_inner_texts()))
+                    routing=page.evaluate("""async()=>{
+                      const first={...originalClients[0],id:'HK-DUPTEST1',name:'Neon Duplicate Test',status:'Contacted',workColor:'green'};
+                      const second={...first,id:'HK-DUPTEST2',workColor:''};
+                      clients.push(first);sectionRecords.leads.push(second);refreshDuplicateWorkRecords();renderDashboard();
+                      const row=document.querySelector('#clientRows tr[data-work-record="HK-DUPTEST1"]');
+                      const highlighted=row?.classList.contains('duplicate-record')&&getComputedStyle(row.cells[0]).backgroundColor==='rgb(223, 255, 0)';
+                      await routeGreenPotentialLeads('clients');
+                      const copy=sectionRecords.potential.find(record=>record.sourceWorkspace==='clients'&&record.sourceRecordId===first.id);
+                      const result={highlighted,sourceRetained:clients.includes(first),copyExists:!!copy,copyIsGreen:copy?.workColor==='green'};
+                      clients=clients.filter(record=>record.id!=='HK-DUPTEST1');sectionRecords.leads=sectionRecords.leads.filter(record=>record.id!=='HK-DUPTEST2');sectionRecords.potential=sectionRecords.potential.filter(record=>record.sourceRecordId!=='HK-DUPTEST1');segmentData.potential=sectionRecords.potential;
+                      await Promise.all([persist(),persistLeads(),persistSegments()]);renderAll();return result;
+                    }""")
+                    assert routing=={'highlighted':True,'sourceRetained':True,'copyExists':True,'copyIsGreen':True},routing
                     assert page.locator('#navClients').inner_text()=='10'
                     sections=page.evaluate("Array.from(document.querySelectorAll('.workspace-page'),section=>({id:section.id,title:section.querySelector('h2')?.innerText,parent:section.parentElement.id}))")
                     assert all(section['parent']!='page-dashboard' for section in sections),sections
