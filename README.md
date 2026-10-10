@@ -1,4 +1,31 @@
-# HOSPkart Hospital CRM + SmartBot + WhatsApp
+# HOSPkart Hospital CRM + QuoteSaarthi + WhatsApp
+
+## QuoteSaarthi setup and team practice
+
+QuoteSaarthi replaces the floating HOSPkart SmartBot. Product search, vendor comparison and single-product draft quotations use the handover CSV catalogue locally, without an OpenAI key. The dashboard's CRM summaries and WhatsApp AI drafts still use the existing optional OpenAI configuration. This integration uses the handover agent and keyword catalogue search; it does not fine-tune a model or install the archive's virtual environment/vector database.
+
+Install the project requirements, then prepare your private catalogue from the supplied ZIP or a CSV:
+
+```powershell
+.venv\Scripts\python.exe prepare_quotesaarthi_catalog.py "C:\Users\Archi\Downloads\HospKart-BD-Chatbot-IT-Handover.zip"
+```
+
+Restart the server after preparing or updating the catalogue. CSV inputs require `product_name`, `vendor_name` and `price` columns. The default file is `data/quotesaarthi/products.csv` under `CRM_DATA_DIR`; an administrator can override it with `QUOTESAARTHI_CATALOG_PATH`. Catalogue data, conversation logs and generated documents are excluded from Git. Production hosts need their own private catalogue and a persistent writable `CRM_DATA_DIR`; cloning the public repository alone does not supply products. Missing catalogue configuration leaves the CRM dashboard available and gives a setup message in chat.
+
+Keep `QUOTESAARTHI_USE_OLLAMA=false` for the default local search/template responses. Optional Ollama formatting requires the `ollama` Python package, a running Ollama service and the configured model; the app does not download a model automatically.
+
+Practise in a separate browser profile:
+
+1. Open **QuoteSaarthi** and ask `IV Set ki vendor listing low-to-high pricing mein dikhao`.
+2. Ask `Syringe 3 ml ka vendor-wise price comparison do`. Check catalogue prices, stock and vendor status before choosing.
+3. Ask `Quote IV Set 50 units with 5% discount and GST 18%`, substituting the verified product and correct tax rate. Missing quantity or GST produces a clarification, not an assumed quote.
+4. Select **Download JSON** or **Download PDF**. Review the product, vendor, quantity, discount, GST and final amount before sharing. These are drafts, not issued tax invoices, and do not automatically create CRM orders or quotations.
+5. Use the header's **New conversation** control to clear product selection without deleting CRM data. Conversations are separate per browser tab and expire after two hours of inactivity or a server restart. Start a fresh conversation if an old session expires.
+6. Use **CRM summary** for the existing source-backed dashboard summary. It requires the optional OpenAI configuration; product search and quote drafts do not.
+
+One product is supported per draft. Send separate requests for multiple products. The guided invoice workflow collects customer details and confirmed GST, but its downloads remain draft quotations. No customer data or message sending is required for training.
+
+Verification for this integration: 58 backend tests passed. Actual Chrome and Edge passed the new Waitress-based catalogue search, multi-turn GST clarification, JSON/PDF download, conversation isolation, reload, mobile layout and CRM preservation checks. Existing Chrome/Edge dashboard checks also passed, including repeated imports, migration, rollback and admin removal. Run `python tests/check_quotesaarthi.py` after installing `requirements-dev.txt`; tests use a temporary synthetic catalogue and never reset the live dashboard. CI also runs this flow with Playwright Chromium.
 
 To remove one imported worksheet without resetting the dashboard, open **Data & backups → Manage imported Excel data**, choose **Remove** beside the specific worksheet, workbook, or imported section, enter the admin password, and type the displayed confirmation. A checkpoint is saved first. Other imports, saved client records, call history, feedback, and the original Excel file are retained. Refresh preserves the removal; an intentional checkpoint restore or re-import can bring the data back.
 
@@ -8,8 +35,8 @@ This local app stores imported data and checkpoints in browser IndexedDB. The pa
 
 VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with:
 
-- floating SmartBot icon in the bottom-right corner
-- OpenAI-powered chatbot adapted from the idea in `archi0724/smartbot`
+- floating QuoteSaarthi icon in the bottom-right corner
+- local catalogue assistant with optional OpenAI-powered CRM summaries
 - official Meta WhatsApp Cloud API connection
 - WhatsApp handoff for each hospital/client
 - manual WhatsApp message sending
@@ -18,7 +45,7 @@ VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with
 - optional AI auto-replies to inbound hospital messages
 - SQLite logs for WhatsApp messages and scheduled jobs
 
-The referenced SmartBot repository inspired this assistant. This project uses the OpenAI Responses API so the assistant can be embedded directly inside the HOSPkart CRM dashboard.
+The earlier SmartBot integration inspired the CRM summary helper. QuoteSaarthi's catalogue agent comes from the supplied IT handover and runs inside the existing dashboard; optional CRM messaging uses the OpenAI Responses API.
 
 ## 1. Open in VS Code
 
@@ -61,7 +88,7 @@ pip install -r requirements.txt
 
 Copy `.env.example` to `.env` and add your credentials.
 
-Minimum for SmartBot:
+Optional configuration for QuoteSaarthi CRM summaries and AI message drafts:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key

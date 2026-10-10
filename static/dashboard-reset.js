@@ -10,6 +10,7 @@ async function performDashboardReset() {
     return;
   }
   if (emailSubmitting) { toast('Wait for the current email request to finish before resetting.'); return; }
+  if (quoteSaarthiSubmitting) { toast('Wait for the QuoteSaarthi request to finish before resetting.'); return; }
   dashboardResetting = true;
   dashboardDataVersion++;
   const button = document.getElementById('resetConfirmButton');
@@ -47,7 +48,8 @@ async function performDashboardReset() {
     document.getElementById('emailMessage').value = '';
     document.getElementById('emailResult').textContent = '';
     document.getElementById('chatBody').replaceChildren();
-    addChatMessage('Hi. Select or add a hospital to begin a new follow-up.');
+    rememberQuoteSaarthiSession(null);
+    addChatMessage('QuoteSaarthi: Select or add a hospital to begin a new follow-up.');
     toggleChat(false);
     closeLeadQuickEditor();
     populateFilters();

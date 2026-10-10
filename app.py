@@ -19,7 +19,7 @@ from time import monotonic
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, url_for
+from flask import Flask, jsonify, render_template, request, url_for, send_file
 from werkzeug.security import check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -567,13 +567,13 @@ def smartbot_reply(message: str, context: dict | None = None) -> str:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return (
-            "SmartBot is running, but OpenAI is not configured yet. Add OPENAI_API_KEY to the .env file and restart the server. "
+            "QuoteSaarthi CRM summaries need OpenAI, which is not configured yet. Add OPENAI_API_KEY to the .env file and restart the server. "
             "You can still use the CRM and WhatsApp handoff tools."
         )
 
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or "gpt-4.1-mini"
     system_context = {
-        "role": "HOSPkart internal CRM and sales operations assistant",
+        "role": "QuoteSaarthi, HOSPkart internal CRM and sales operations assistant",
         "rules": [
             "Use clear, concise business English.",
             "Help with hospital/client follow-ups, quotation follow-ups, order updates, feedback messages and CRM summaries.",
@@ -838,6 +838,53 @@ def chat():
         return jsonify({"ok": True, "reply": reply})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.post('/api/quotesaarthi/chat')
+def quotesaarthi_chat():
+    body=request.get_json(silent=True)
+    if not isinstance(body,dict):
+        return jsonify(ok=False,error='Send a JSON object.'),400
+    message=body.get('message',body.get('query',''))
+    token=body.get('session_id')
+    if not isinstance(message,str) or not message.strip() or len(message)>4000:
+        return jsonify(ok=False,error='Message must contain 1–4,000 characters.'),400
+    if token is not None and (not isinstance(token,str) or not re.fullmatch(r'[A-Za-z0-9_-]{43}',token)):
+        return jsonify(ok=False,error='Invalid conversation.'),400
+    context=body.get('context') or {}
+    if not isinstance(context,dict):
+        return jsonify(ok=False,error='CRM context must be an object.'),400
+    if body.get('mode')=='crm' or re.search(r'\b(?:crm|dashboard|follow[- ]?ups?|feedback message)\b',message,re.I):
+        try:
+            return jsonify(ok=True,reply=smartbot_reply(message,context),session_id=token,exports=[],assistant='QuoteSaarthi')
+        except Exception as error:
+            return jsonify(ok=False,error=str(error)),503
+    try:
+        from quotesaarthi.runtime import get_service
+        options=body.get('options') or {}
+        if not isinstance(options,dict):
+            return jsonify(ok=False,error='Search options must be an object.'),400
+        return jsonify(get_service(DATA_DIR).chat(message.strip(),token,options))
+    except LookupError as error:
+        return jsonify(ok=False,error=str(error),conversation_expired=True),409
+    except (FileNotFoundError,ValueError) as error:
+        return jsonify(ok=False,error=str(error)),503
+    except Exception:
+        app.logger.exception('QuoteSaarthi request failed')
+        return jsonify(ok=False,error='QuoteSaarthi could not complete this request. Please try again.'),503
+
+
+@app.post('/api/quotesaarthi/download/<filename>')
+def quotesaarthi_download(filename):
+    body=request.get_json(silent=True)
+    if not isinstance(body,dict) or not isinstance(body.get('session_id'),str):
+        return jsonify(ok=False,error='Conversation is required.'),403
+    try:
+        from quotesaarthi.runtime import get_service
+        target=get_service(DATA_DIR).download(body['session_id'],filename)
+        return send_file(target,as_attachment=True,download_name=target.name)
+    except (LookupError,FileNotFoundError):
+        return jsonify(ok=False,error='Export not found in this conversation.'),404
 
 
 @app.post("/api/whatsapp/send")

@@ -10,6 +10,7 @@ data/*.db-*
 data/admin_password.hash
 data/imported_invoice_workbook.json
 data/*.png
+data/quotesaarthi/
 invoice-server.stdout.log
 invoice-server.stderr.log
 localhost.stdout.log

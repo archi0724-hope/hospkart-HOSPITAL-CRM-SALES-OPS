@@ -146,14 +146,14 @@ def check():
                     def respond_to_chat(route):
                         chat_requests.append(route.request.post_data_json)
                         route.fulfill(json={'ok':True,'reply':'Synthetic SmartBot check: 4 served entries, 2 clients, 3 invoices.'})
-                    page.route('**/api/chat',respond_to_chat)
+                    page.route('**/api/quotesaarthi/chat',respond_to_chat)
                     page.evaluate("toggleChat(true)")
                     page.fill('#chatInput','Explain served entries and distinct clients')
                     page.click('.chat-send')
                     page.locator('.chat-msg.bot').get_by_text('Synthetic SmartBot check: 4 served entries, 2 clients, 3 invoices.',exact=True).wait_for()
                     assert chat_requests[-1]['context']['invoice_analysis']['invoice_value']==600
                     page.evaluate('toggleChat(false)')
-                    page.unroute('**/api/chat',respond_to_chat)
+                    page.unroute('**/api/quotesaarthi/chat',respond_to_chat)
                     assert page.evaluate("segmentData.served.filter(record=>record.name==='Test Alpha').length")==3
                     assert page.locator('#servedOrderValue').inner_text()=='₹600'
                     assert page.locator('#servedDistinctClients').inner_text()=='2'

@@ -31,3 +31,6 @@ jobs:
       - run: python tests/check_production_browsers.py
         env:
           BROWSER_CHANNELS: chromium,chromium
+      - run: python tests/check_quotesaarthi.py
+        env:
+          BROWSER_CHANNELS: chromium,chromium
