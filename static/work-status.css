@@ -5,7 +5,6 @@
 .work-tag.work-orange{color:#ff8c00}
 .work-tag.work-blue{color:#2254b3}
 .work-tag.duplicate-neon{color:#b9d600}
-.work-tag.duplicate-neon:before{display:none}
 .duplicate-record .client-name,.duplicate-record .queue-name,.duplicate-record .work-name{color:#b9d600!important}
 .work-color-select{background:#64748b;color:#fff}
 .work-color-select option{background:#64748b;color:#fff}
