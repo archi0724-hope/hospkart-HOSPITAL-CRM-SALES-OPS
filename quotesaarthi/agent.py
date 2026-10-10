@@ -25,7 +25,7 @@ from .rag import HospKartRAG
 GST_RATE = 0.18
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_LOGO_CANDIDATES = (
-    ROOT_DIR.parent / "static" / "hospkart-logo-banner.png",
+    ROOT_DIR.parent / "static" / "hospkart-logo-pastel.png",
     ROOT_DIR / "hospkart-hero-fallback.jpg",
 )
 

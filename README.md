@@ -290,7 +290,7 @@ This improves runtime instructions and data context; it does not fine-tune model
 
 The private workbook tests use temporary databases and prepared workbook copies. They do not re-seed or reset the live dashboard. To run them without creating a live server workbook, set `HOSPKART_TEST_WORKBOOK` to the private Excel path, then run `python tests/check_invoice_dashboard.py` and `python tests/check_import_removal.py`. Without that variable, the scripts copy an existing local prepared workbook into temporary test storage. Customer workbook contents remain excluded from Git. No customer email or WhatsApp message was sent during these checks; the live OpenAI provider was not called.
 
-The requested logo background uses the built-in image editor. Edit prompt: replace only the background with a vertical gradient from #9FA8DA through #F8BBD0 to #FFE0B2, preserving the logo, wording and full 2048 × 768 layout. The installed asset is `static/hospkart-logo-banner.png`.
+The requested logo background uses the built-in image editor. Edit prompt: replace only the background with a vertical gradient from #9FA8DA through #F8BBD0 to #FFE0B2, preserving the logo, wording and full 2048 × 768 layout. The installed asset is `static/hospkart-logo-pastel.png`; its distinct URL avoids reusing a cached yellow banner.
 
 ## Attribution
 
