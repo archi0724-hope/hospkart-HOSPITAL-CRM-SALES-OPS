@@ -1,0 +1,135 @@
+{
+  "source": "Synthetic built-in CRM examples, synthetic invoice workbook and synthetic four-offer catalogue. No production records or credentials.",
+  "views": [
+    {
+      "file": "01-navigation.png",
+      "description": "Yellow HOSPkart wordmark and workspace menu",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "02-dashboard.png",
+      "description": "Workspace: dashboard",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "03-clients.png",
+      "description": "Workspace: clients",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "04-rghs.png",
+      "description": "Workspace: rghs",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "05-served.png",
+      "description": "Workspace: served",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "06-doctors.png",
+      "description": "Workspace: doctors",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "07-potential.png",
+      "description": "Workspace: potential",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "08-leads.png",
+      "description": "Workspace: leads",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "09-quotations.png",
+      "description": "Workspace: quotes",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "10-orders.png",
+      "description": "Workspace: orders",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "11-calling.png",
+      "description": "Workspace: calling",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "12-feedback.png",
+      "description": "Workspace: feedback",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "13-whatsapp.png",
+      "description": "Workspace: whatsapp",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "14-email.png",
+      "description": "Workspace: email",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "15-reports.png",
+      "description": "Workspace: reports",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "18-backups.png",
+      "description": "Workspace: data",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "16-invoice-analysis.png",
+      "description": "Invoice metrics: 3 valid invoices, 2 clients, INR 600; synthetic workbook",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "17-workbook-details.png",
+      "description": "Original columns and four item rows from Client Call List",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "19-admin-removal.png",
+      "description": "Admin confirmation for one worksheet; no removal submitted",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "20-quotesaarthi-search.png",
+      "description": "Actual local search against four synthetic offers",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "21-quotesaarthi-draft.png",
+      "description": "Actual draft quotation INR 89.68 with JSON/PDF export controls",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "22-mobile.png",
+      "description": "Mobile dashboard overview",
+      "data": "synthetic demonstration"
+    },
+    {
+      "file": "23-mobile-navigation.png",
+      "description": "Mobile workspace menu",
+      "data": "synthetic demonstration"
+    }
+  ],
+  "invoice_fixture": {
+    "served_entries": 4,
+    "distinct_clients": 2,
+    "valid_invoices": 3,
+    "valid_invoice_value": 600,
+    "cancelled_invoices": 1
+  },
+  "quote_fixture": {
+    "quantity": 10,
+    "unit_price": 8,
+    "discount_percent": 5,
+    "gst_percent": 18,
+    "total": 89.68
+  },
+  "page_errors": []
+}

@@ -1,5 +1,7 @@
 # HOSPkart Hospital CRM + QuoteSaarthi + WhatsApp
 
+For a complete illustrated walkthrough, see [README-2.md](README-2.md). Use [PPT_GENERATION_PROMPT.md](PPT_GENERATION_PROMPT.md) with the 23 synthetic screenshots in `docs/screenshots/` to create a project presentation.
+
 ## QuoteSaarthi setup and team practice
 
 QuoteSaarthi replaces the floating HOSPkart SmartBot. Product search, vendor comparison and single-product draft quotations use the handover CSV catalogue locally, without an OpenAI key. The dashboard's CRM summaries and WhatsApp AI drafts still use the existing optional OpenAI configuration. This integration uses the handover agent and keyword catalogue search; it does not fine-tune a model or install the archive's virtual environment/vector database.
