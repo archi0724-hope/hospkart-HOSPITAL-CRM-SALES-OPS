@@ -71,8 +71,9 @@ def capture():
                 views=[('dashboard','02-dashboard.png'),('clients','03-clients.png'),('rghs','04-rghs.png'),('served','05-served.png'),('doctors','06-doctors.png'),('potential','07-potential.png'),('leads','08-leads.png'),('quotes','09-quotations.png'),('orders','10-orders.png'),('calling','11-calling.png'),('feedback','12-feedback.png'),('whatsapp','13-whatsapp.png'),('email','14-email.png'),('reports','15-reports.png'),('data','18-backups.png')]
                 for view,name in views:
                     page.evaluate('(view)=>navigate(view)',view)
+                    page.evaluate("window.scrollTo({top:0,behavior:'instant'})")
                     if view=='data':
-                        page.evaluate("document.querySelector('button[onclick=\"prepareFullBackup()\"]').closest('.card').scrollIntoView();window.scrollBy(0,-85)")
+                        page.evaluate("const card=document.querySelector('button[onclick=\"prepareFullBackup()\"]').closest('.card');window.scrollTo({top:card.getBoundingClientRect().top+window.scrollY-85,behavior:'instant'})")
                     shot(name,'Workspace: '+view)
                 page.evaluate("navigate('reports');document.getElementById('invoiceDashboard').scrollIntoView()")
                 shot('16-invoice-analysis.png','Invoice metrics: 3 valid invoices, 2 clients, INR 600; synthetic workbook')
