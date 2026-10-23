@@ -11,6 +11,7 @@ async function performDashboardReset() {
   }
   if (emailSubmitting) { toast('Wait for the current email request to finish before resetting.'); return; }
   if (quoteSaarthiSubmitting) { toast('Wait for the QuoteSaarthi request to finish before resetting.'); return; }
+  if (typeof sheetBusy !== 'undefined' && sheetBusy) { toast('Wait for the spreadsheet operation to finish before resetting.'); return; }
   dashboardResetting = true;
   dashboardDataVersion++;
   const button = document.getElementById('resetConfirmButton');
@@ -32,6 +33,9 @@ async function performDashboardReset() {
     backups = [];
     segmentData = {served: [], doctors: [], potential: []};
     sectionRecords = {rghs: [], leads: [], served: [], doctors: [], potential: []};
+    sheetState = null;
+    sheetAppliedRevision = null;
+    invalidateSheetPreview();
     filtered = [];
     quickMode = 'all';
     editingCallIndex = -1;
@@ -68,6 +72,7 @@ async function performDashboardReset() {
     updateResetButton();
   }
   if (completed) {
+    await initializeSpreadsheetSync();
     renderAll();
     updateEmailRecipients();
     loadScheduledMessages();

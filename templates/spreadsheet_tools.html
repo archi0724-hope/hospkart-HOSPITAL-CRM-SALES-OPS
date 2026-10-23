@@ -1,0 +1,34 @@
+<div class="toolbar-actions sheet-toolbar">
+  <button class="btn navy" type="button" onclick="openLeadQueryExport()">Export Excel</button>
+  <button class="btn" type="button" onclick="openSpreadsheetConnection()">Connect Spreadsheet</button>
+  <button class="btn primary" type="button" data-sheet-action onclick="syncLinkedSpreadsheet()" id="sheetSyncButton" disabled>Sync Now</button>
+</div>
+<div class="card sheet-card" id="sheetConnectionStatus" aria-live="polite">
+  <div class="card-body"><p id="sheetStatusText">No spreadsheet connected.</p><p class="mini-help" id="sheetSyncTime"></p><a id="sheetOpenLink" class="btn small hidden" target="_blank" rel="noopener noreferrer">Open Linked Sheet</a><p id="sheetConnectionError" class="sheet-error" role="status"></p><div id="sheetSyncReport"></div></div>
+</div>
+<details class="card sheet-card" id="sheetConnectPanel">
+  <summary class="card-head">Connect Spreadsheet</summary>
+  <div class="card-body">
+    <p class="mini-help">Connect a private native Google Sheet with separate Leads and Queries tabs and headers in row 1. The source updates matching CRM IDs; rows removed from the sheet stay in the CRM. This connection reads from the sheet only.</p>
+    <p class="mini-help" id="sheetCredentialHint">An administrator must configure Google access on the server and share the sheet with that service account as Viewer. Keep the sheet private.</p>
+    <div class="field"><label for="sheetLinkInput">Google Drive / Google Sheets link</label><input id="sheetLinkInput" class="control" type="url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" oninput="invalidateSheetInspection()"></div>
+    <button class="btn" type="button" data-sheet-action onclick="inspectSpreadsheet()">Check link and access</button>
+    <div id="sheetTabStep" class="hidden">
+      <div class="form-grid sheet-form">
+        <div class="field"><label for="sheetLeadsTab">Leads worksheet</label><select id="sheetLeadsTab" class="control" onchange="invalidateSheetMapping()"></select></div>
+        <div class="field"><label for="sheetQueriesTab">Queries worksheet</label><select id="sheetQueriesTab" class="control" onchange="invalidateSheetMapping()"></select></div>
+        <div class="field"><label for="sheetAutoMinutes">Automatic refresh</label><select id="sheetAutoMinutes" class="control" onchange="invalidateSheetPreview()"><option value="0">Off — manual sync</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select></div>
+      </div>
+      <p class="mini-help">Automatic sync runs while the server is running with its scheduler enabled. The open dashboard checks for saved changes every 30 seconds. Use YYYY-MM-DD for dates and Plain text for IDs and phone numbers.</p>
+      <button class="btn" type="button" data-sheet-action onclick="loadSpreadsheetColumns()">Load columns</button>
+    </div>
+    <div id="sheetMappingStep" class="hidden"><div id="sheetMappings" class="sheet-mappings"></div><p class="mini-help">* Required mapping. Unmapped CRM fields are kept. Blank cells in mapped columns clear those values. IDs are case-sensitive; names and row positions are never used for matching. Matching IDs also update the displayed record in this browser.</p><button class="btn navy" type="button" data-sheet-action onclick="previewSpreadsheet()">Preview and validate</button></div>
+    <div id="sheetPreviewStep" class="hidden"><h3>Import preview</h3><div id="sheetPreviewReport"></div><div id="sheetPreviewRows"></div><p class="mini-help">Up to 10 valid rows per tab are shown. Import applies the reviewed snapshot; invalid rows are rejected and existing saved records are kept. The preview expires after 15 minutes. Review ID collisions before continuing.</p><button class="btn primary" type="button" data-sheet-action onclick="importSpreadsheetPreview()" id="sheetImportButton">Import valid rows and save connection</button></div>
+    <p id="sheetSetupMessage" role="status" aria-live="polite"></p>
+  </div>
+</details>
+<div class="sheet-filters" aria-label="Lead filters">
+  <div class="field"><label for="sheetLeadSearch">Search leads</label><input id="sheetLeadSearch" class="control" type="search" placeholder="ID, name, company, contact…" oninput="renderLeadBoard();renderSpreadsheetRecords()"></div>
+  <div class="field"><label for="sheetLeadStatus">Lead status</label><select id="sheetLeadStatus" class="control" onchange="renderLeadBoard();renderSpreadsheetRecords()"><option value="">All statuses</option></select></div>
+  <div class="field"><label for="sheetLeadOwner">Assigned owner</label><select id="sheetLeadOwner" class="control" onchange="renderLeadBoard();renderSpreadsheetRecords()"><option value="">All owners</option></select></div>
+</div>

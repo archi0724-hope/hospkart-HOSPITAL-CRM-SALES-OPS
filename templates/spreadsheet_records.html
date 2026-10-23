@@ -1,0 +1,18 @@
+<div class="card sheet-card">
+  <div class="card-head"><div><h2>Lead records</h2><small id="sheetLeadVisibleCount"></small></div></div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Lead ID</th><th>Name / Company</th><th>Email / Phone</th><th>Status</th><th>Assigned owner</th><th>Created date</th><th>Follow-up date</th><th>Action</th></tr></thead><tbody id="sheetLeadRows"></tbody></table></div>
+</div>
+<div class="card sheet-card">
+  <div class="card-head"><div><h2>Query records <span id="sheetQueryTotal">0</span></h2><small id="sheetQueryVisibleCount"></small></div></div>
+  <div class="card-body">
+    <p class="mini-help">Queries retain their related Lead ID. Existing local leads in “Query Received” appear with a stable CRM-Q: query ID until independent queries are linked for that lead.</p>
+    <div class="sheet-filters" aria-label="Query filters">
+      <div class="field"><label for="sheetQuerySearch">Search queries</label><input id="sheetQuerySearch" class="control" type="search" placeholder="Query ID, subject, details…" oninput="renderSpreadsheetRecords()"></div>
+      <div class="field"><label for="sheetQueryStatus">Query status</label><select id="sheetQueryStatus" class="control" onchange="renderSpreadsheetRecords()"><option value="">All statuses</option></select></div>
+      <div class="field"><label for="sheetQueryOwner">Query owner</label><select id="sheetQueryOwner" class="control" onchange="renderSpreadsheetRecords()"><option value="">All owners</option></select></div>
+      <div class="field"><label for="sheetQueryLead">Related lead</label><select id="sheetQueryLead" class="control" onchange="renderSpreadsheetRecords()"><option value="">All leads</option></select></div>
+    </div>
+    <div id="sheetQueryChart" class="sheet-status-chart" aria-label="Query counts by status"></div>
+  </div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Query ID</th><th>Related Lead ID</th><th>Subject</th><th>Query details</th><th>Status</th><th>Assigned owner</th><th>Created date</th><th>Last updated date</th></tr></thead><tbody id="sheetQueryRows"></tbody></table></div>
+</div>

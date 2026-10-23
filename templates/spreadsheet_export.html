@@ -1,0 +1,10 @@
+<dialog id="leadQueryExportDialog" class="sheet-export-dialog">
+  <form onsubmit="event.preventDefault();downloadLeadQueryExcel()">
+    <h2>Export Leads and Queries</h2>
+    <p>One .xlsx workbook with separate Leads and Queries worksheets.</p>
+    <div class="field"><label for="sheetExportScope">Export scope</label><select id="sheetExportScope" class="control" onchange="updateLeadQueryExportCount()"><option value="all">All Leads and Queries records</option><option value="filtered">Currently filtered records</option></select></div>
+    <p class="mini-help">On the Dashboard, filtered export uses the dashboard’s visible lead records and their queries. On Leads &amp; Queries, it uses the lead and query filters separately. Other workspaces keep their existing exports.</p>
+    <p id="sheetExportCount" aria-live="polite"></p><p id="sheetExportError" class="sheet-error" role="alert"></p>
+    <div class="toolbar-actions"><button class="btn" type="button" onclick="document.getElementById('leadQueryExportDialog').close()">Cancel</button><button class="btn" type="button" onclick="exportLegacyCurrentView()">Existing workspace export</button><button class="btn primary" id="sheetDownloadButton" type="submit">Download Excel</button></div>
+  </form>
+</dialog>

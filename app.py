@@ -21,6 +21,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, url_for, send_file
 from werkzeug.security import check_password_hash
+import spreadsheet_sync
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -181,6 +182,7 @@ def env_bool(name: str, default: bool = False) -> bool:
 def db_conn():
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
     try:
         with conn:
             yield conn
@@ -235,6 +237,7 @@ def init_db():
             );
             """
         )
+        spreadsheet_sync.init_schema(conn)
 
 
 def now_iso():
@@ -429,11 +432,19 @@ def api_reset_dashboard():
     if not messaging_lock.acquire(blocking=False):
         return jsonify({"ok": False, "error": "Follow-up activity is in progress. Wait for it to finish, then reset again."}), 409
     try:
-        with db_conn() as conn:
+        with sheet_sync.lock, db_conn() as conn:
             cleared = {}
             for table in ("email_followups", "scheduled_messages", "message_log"):
                 cleared[table] = conn.execute(f"DELETE FROM {table}").rowcount
-        return jsonify({"ok": True, "cleared": cleared})
+            spreadsheet_cleared = {}
+            for table in ("sheet_queries", "sheet_leads", "sheet_previews"):
+                spreadsheet_cleared[table] = conn.execute(f"DELETE FROM {table}").rowcount
+            connection = conn.execute("SELECT settings FROM sheet_connection WHERE id=1").fetchone()
+            if connection:
+                settings = json.loads(connection['settings'])
+                settings['auto_minutes'] = 0
+                conn.execute("UPDATE sheet_connection SET settings=?,revision=revision+1,last_success=NULL,last_attempt=NULL,last_error=NULL,last_result=NULL,last_attempt_epoch=0 WHERE id=1", (json.dumps(settings),))
+        return jsonify({"ok": True, "cleared": cleared, "spreadsheet_cleared": spreadsheet_cleared})
     finally:
         messaging_lock.release()
 
@@ -1031,10 +1042,12 @@ def receive_webhook():
     return jsonify({"ok": True, "processed": len(inbound)})
 
 
+sheet_sync = spreadsheet_sync.register(app, db_conn, now_iso)
 init_db()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 scheduler.add_job(process_due_messages, "interval", seconds=60, id="whatsapp_followups", replace_existing=True)
 scheduler.add_job(process_due_emails, "interval", seconds=15, id="email_followups", replace_existing=True)
+scheduler.add_job(sheet_sync.auto_sync, "interval", seconds=60, id="spreadsheet_sync", replace_existing=True, max_instances=1, coalesce=True)
 if env_bool("SCHEDULER_ENABLED", True):
     scheduler.start()
 
