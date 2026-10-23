@@ -31,8 +31,9 @@ def check():
                 for channel in os.getenv('BROWSER_CHANNELS', 'chrome,msedge').split(','):
                     # Each browser's fixture and server records start independently.
                     with app.db_conn() as conn:
-                        for table in ('sheet_queries', 'sheet_leads', 'sheet_previews', 'sheet_connection'):
+                        for table in ('sheet_queries', 'sheet_leads', 'sheet_previews', 'sheet_connection', 'crm_workspace'):
                             conn.execute('DELETE FROM ' + table)
+                    app.init_db()
                     provider = FakeSheets()
                     with patch.object(app.sheet_sync, 'provider', provider):
                         browser = playwright.chromium.launch(channel=None if channel == 'chromium' else channel, headless=True)

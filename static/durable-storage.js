@@ -1,11 +1,12 @@
-// CRM records use transactional IndexedDB, rather than localStorage's small quota.
+// IndexedDB is a recovery/cache copy; shared-workspace.js saves to SQLite first.
 const dashboardStorage = new Map();
 const dashboardKeys = ['hk_v2_clients','hk_v2_calls','hk_v2_feedback','hk_v2_segments','hk_v2_rghs','hk_v2_leads','hk_v2_served','hk_v2_doctors','hk_v2_potential','hk_v2_invoice_workbook','hk_v2_backups','hk_v2_reset_revision'];
 let dashboardDatabase;
 let dashboardReady = false;
+let browserCacheReady = false;
 let dashboardWriteQueue = Promise.resolve();
 const dashboardChanges = typeof BroadcastChannel==='function'?new BroadcastChannel('hospkart-crm-changes'):null;
-if(dashboardChanges)dashboardChanges.onmessage=()=>{if(dashboardReady)window.location.reload();};
+if(dashboardChanges)dashboardChanges.onmessage=()=>{if(dashboardReady && typeof refreshSharedWorkspace==='function')refreshSharedWorkspace();};
 function readableLegacyRecord(key,raw){
   try{
     const value=JSON.parse(raw);
@@ -35,7 +36,7 @@ function databaseRecords() {
     for(const key of dashboardKeys){const request=records.get(key);request.onsuccess=()=>{if(request.result!==undefined)result.set(key,request.result);};}
   });
 }
-async function initializeDashboardStorage() {
+async function initializeBrowserCache() {
   try{
     const legacy=new Map();
     for(const key of dashboardKeys){const raw=localStorage.getItem(key);if(raw!==null)legacy.set(key,raw);}
@@ -59,7 +60,7 @@ async function initializeDashboardStorage() {
     saved.forEach((raw,key)=>dashboardStorage.set(key,raw));
     // Keep unreadable legacy records available for recovery. Never clear the site.
     legacy.forEach((raw,key)=>{try{if(readableLegacyRecord(key,raw)&&saved.get(key)===raw&&localStorage.getItem(key)===raw)localStorage.removeItem(key);}catch(_){} });
-    dashboardReady=true;
+    browserCacheReady=true;
     if(navigator.storage?.persist)navigator.storage.persist().catch(()=>{});
   }catch(error){
     // Original localStorage data remains readable when migration is unavailable.
@@ -67,17 +68,11 @@ async function initializeDashboardStorage() {
     browserStorageNotice('Browser storage could not be opened. Your existing records are kept. Enable site storage and reload. '+error.message);
   }
 }
-function commitDashboardRecords(values) {
+async function cacheDashboardRecords(values) {
   const serialized=Object.fromEntries(Object.entries(values).map(([key,value])=>[key,JSON.stringify(value)]));
-  const operation=dashboardWriteQueue.then(async()=>{
-    if(!dashboardReady)throw new Error('Browser storage is unavailable. Your existing records have been kept.');
+  if(browserCacheReady){
+    try{
     await databaseTransaction(serialized);
-    Object.entries(serialized).forEach(([key,raw])=>dashboardStorage.set(key,raw));
-    dashboardChanges?.postMessage('saved');
-  });
-  dashboardWriteQueue=operation.catch(()=>{});
-  return operation.catch(error=>{
-    browserStorageNotice('Changes could not be saved. Download a JSON checkpoint before closing this page. '+error.message);
-    throw error;
-  });
+    }catch(error){browserStorageNotice('Shared records are saved on the server, but this browser could not keep a recovery copy. '+error.message);}
+  }
 }

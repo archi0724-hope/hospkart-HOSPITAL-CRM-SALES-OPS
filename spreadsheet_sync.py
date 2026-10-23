@@ -15,6 +15,7 @@ from threading import RLock
 from urllib.parse import parse_qs, urlparse
 
 from flask import Blueprint, jsonify, request, send_file
+import shared_workspace
 
 MAX_ROWS = 20000
 MAX_COLUMNS = 200
@@ -295,6 +296,7 @@ class SheetSync:
         return {'settings': settings, 'rows': rows, 'errors': errors}
 
     def plan(self, conn, snapshot, apply=False):
+        shared_leads = []
         report = {kind: {'added': 0, 'updated': 0, 'unchanged': 0,
                          'rejected': sum(error['kind'] == kind for error in snapshot['errors'])}
                   for kind in FIELDS}
@@ -308,6 +310,8 @@ class SheetSync:
                     merged['status'] = 'New Lead'
                 if kind == 'queries' and not merged.get('status'):
                     merged['status'] = 'Open'
+                if apply and kind == 'leads':
+                    shared_leads.append(merged)
                 changed = merged != old
                 report[kind]['updated' if existing and changed else 'unchanged' if existing else 'added'] += 1
                 if apply and changed:
@@ -315,6 +319,8 @@ class SheetSync:
                         conn.execute('INSERT INTO sheet_leads(id,data) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data', (merged['id'], json_text(merged)))
                     else:
                         conn.execute('INSERT INTO sheet_queries(id,lead_id,data) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET lead_id=excluded.lead_id,data=excluded.data', (merged['id'], merged['lead_id'], json_text(merged)))
+        if apply:
+            shared_workspace.merge_sheet_leads(conn, shared_leads)
         return {'counts': report, 'errors': snapshot['errors']}
 
     def preview(self, body):

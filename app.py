@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, url_for, send_file
 from werkzeug.security import check_password_hash
 import spreadsheet_sync
+import shared_workspace
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -238,6 +239,7 @@ def init_db():
             """
         )
         spreadsheet_sync.init_schema(conn)
+        shared_workspace.init_schema(conn)
 
 
 def now_iso():
@@ -433,6 +435,8 @@ def api_reset_dashboard():
         return jsonify({"ok": False, "error": "Follow-up activity is in progress. Wait for it to finish, then reset again."}), 409
     try:
         with sheet_sync.lock, db_conn() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            shared_state = shared_workspace.reset(conn, body.get('workspace_revision'))
             cleared = {}
             for table in ("email_followups", "scheduled_messages", "message_log"):
                 cleared[table] = conn.execute(f"DELETE FROM {table}").rowcount
@@ -444,7 +448,7 @@ def api_reset_dashboard():
                 settings = json.loads(connection['settings'])
                 settings['auto_minutes'] = 0
                 conn.execute("UPDATE sheet_connection SET settings=?,revision=revision+1,last_success=NULL,last_attempt=NULL,last_error=NULL,last_result=NULL,last_attempt_epoch=0 WHERE id=1", (json.dumps(settings),))
-        return jsonify({"ok": True, "cleared": cleared, "spreadsheet_cleared": spreadsheet_cleared})
+        return jsonify({"ok": True, "cleared": cleared, "spreadsheet_cleared": spreadsheet_cleared, "workspace": shared_state})
     finally:
         messaging_lock.release()
 
@@ -1043,6 +1047,7 @@ def receive_webhook():
 
 
 sheet_sync = spreadsheet_sync.register(app, db_conn, now_iso)
+shared_workspace.register(app, db_conn)
 init_db()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 scheduler.add_job(process_due_messages, "interval", seconds=60, id="whatsapp_followups", replace_existing=True)

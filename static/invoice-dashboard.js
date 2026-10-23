@@ -96,6 +96,7 @@ async function loadInvoiceWorkbook(force = false) {
     if (!force && saved !== null) {
       const snapshot=JSON.parse(saved);
       if(!validInvoiceSnapshot(snapshot))throw new Error('Saved invoice data is unreadable. Restore a JSON checkpoint or import the Excel file again.');
+      if(snapshot===null){invoiceWorkbook=null;renderInvoiceDashboard();return;}
       const served=invoiceClientRecords(snapshot,segmentData.served),merged=mergeImportedClients(invoiceMasterRecords(snapshot));
       if(JSON.stringify(served)!==JSON.stringify(segmentData.served)||JSON.stringify(merged.rows)!==JSON.stringify(clients)) {
         await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},sections:{...sectionRecords,served},invoiceWorkbook:snapshot},'');

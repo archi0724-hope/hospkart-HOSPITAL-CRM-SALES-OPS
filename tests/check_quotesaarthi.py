@@ -31,7 +31,9 @@ def check():
                         context=browser.new_context(accept_downloads=True);page=context.new_page();errors=[]
                         page.on('pageerror',lambda error:errors.append(str(error)))
                         page.goto(f'http://127.0.0.1:{server.effective_port}/')
-                        page.wait_for_function("typeof dashboardStorage!=='undefined' && document.getElementById('navClients').innerText==='10'")
+                        page.wait_for_function('dashboardReady && !document.body.inert')
+                        if page.evaluate('clients.length') == 0:
+                            page.evaluate('async()=>{clients=clone(originalClients);calls=clone(originalCalls);feedback=clone(originalFeedback);await persist();renderAll();}')
                         before=page.evaluate('JSON.stringify({clients,sectionRecords})')
                         page.get_by_role('button',name='Open QuoteSaarthi',exact=True).click()
 

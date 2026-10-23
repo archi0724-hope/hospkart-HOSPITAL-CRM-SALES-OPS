@@ -35,7 +35,7 @@ def make_workbook(path):
     workbook.save(path);workbook.close()
 
 
-def check():
+def check_legacy_browser_storage():
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp);app.DATA_DIR=root;app.DB_PATH=root/'test.db';app.ADMIN_PASSWORD_PATH=root/'admin.hash'
         app.admin_attempts.clear();app.init_db()
@@ -324,6 +324,13 @@ def check():
             server.close()
             if app.scheduler.running:app.scheduler.shutdown(wait=False)
             if previous_hash is not None:os.environ['ADMIN_PASSWORD_HASH']=previous_hash
+
+
+def check():
+    # Shared SQLite replaces the former per-browser isolation expectations.
+    # Keep the historical storage cases above as a reference for old releases.
+    from check_shared_workspace import check as check_shared
+    check_shared()
 
 
 if __name__=='__main__':check()

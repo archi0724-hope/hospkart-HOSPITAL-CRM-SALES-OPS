@@ -170,6 +170,13 @@ function previewSpreadsheet() {
 
 async function applySheetState(result) {
   const revision = result.connection?.revision ?? 0;
+  if (typeof sharedWorkspaceEnabled !== 'undefined' && sharedWorkspaceEnabled) {
+    const changed = sheetAppliedRevision !== revision;
+    sheetState = result; sheetAppliedRevision = revision;
+    if (changed) await refreshSharedWorkspace(sheetBusy);
+    renderSheetConnection(); renderSpreadsheetRecords();
+    return;
+  }
   if (revision !== sheetAppliedRevision) {
     const nextLeads = sectionRecords.leads.map(row => ({...row}));
     const index = new Map(nextLeads.map((row, position) => [row.id, position]));

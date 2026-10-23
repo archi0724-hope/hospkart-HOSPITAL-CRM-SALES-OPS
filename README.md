@@ -1,5 +1,17 @@
 # HOSPkart Hospital CRM + QuoteSaarthi + WhatsApp
 
+## Shared uploads for all users
+
+Upload Excel or save a CRM record once: everyone opening this same CRM server sees the saved data. All six workspaces, call history, feedback, uploaded workbook sheets, remarks and recent checkpoints use the existing SQLite database at `CRM_DATA_DIR/hospkart_crm.db` (default `data/hospkart_crm.db`). No separate database account is required for local sharing. A new shared database starts empty; fictional demo records are not automatically published.
+
+After updating, reload the CRM in the original browser/site address where your uploads were saved. Valid saved records automatically migrate if the shared database is still uninitialized. The previous browser copy is preserved. If shared records already exist, the banner offers **Download preserved browser data** and **Restore preserved data for all users**; restoration requires confirmation and creates a checkpoint first. Unreadable older data is retained as a raw recovery download.
+
+Saving succeeds only after the server commits the transaction. If the network or database fails, saved data stays unchanged and unsaved changes can be downloaded. Concurrent stale edits receive a conflict message and do not overwrite the latest records. Browser storage being blocked does not prevent server saves. Other idle dashboards refresh within about five seconds; users with open editors finish or close them before receiving refreshed records.
+
+To use this across different networks, all users need the same hosted or protected tunnel URL pointing at this server. `localhost` on another computer points to that other computer. Hosting must retain `CRM_DATA_DIR` on persistent storage; deploy one scheduler-owning process. A tunnel still requires this computer and server to stay running. This change connects shared storage; it does not create a public URL or add account sign-in.
+
+Backend checks: `.venv\Scripts\python.exe -m unittest discover -s tests`. Multi-user browser checks: `.venv\Scripts\python.exe tests/check_shared_workspace.py` (or `tests/check_production_browsers.py`). They use temporary SQLite databases, synthetic uploads and independent Chrome/Edge profiles to verify migration, visibility, imports, worksheets, backups, concurrent saves, failures and restart persistence.
+
 ## Leads and Queries: Excel export and linked Google Sheets
 
 Open **Leads & Queries → Export Excel**, or use **Export Excel** on the Dashboard. The download is a real `.xlsx` workbook with **Leads** and **Queries** worksheets, readable headers, frozen header rows, filters, and date cells. IDs and phone numbers are text, including leading zeros. Only documented business fields are exported; credentials and internal fields are excluded. Unknown historical dates stay blank; legacy display dates that cannot be parsed are retained as text. Timestamp cells are exported in UTC.
@@ -31,11 +43,11 @@ Select both tabs, click **Load columns**, and map each source column to one CRM 
 
 **Sync Now** reads the saved source again. Stable Lead IDs and Query IDs determine inserts and updates; names and row positions are never used. Duplicate IDs reject every occurrence. Missing IDs, invalid values and queries with missing/rejected leads are listed for review. Valid rows can still import; rejected existing rows retain their previous values. A source row disappearing never deletes its saved CRM record. Unmapped CRM fields are retained; blank mapped cells clear their values. Switching source sheets uses the same ID space, so review matching IDs carefully.
 
-Linked records are persisted in SQLite and merged into the existing lead workspace after a successful save and on page load. Existing browser records and features remain available; a matching local Lead ID receives the linked fields. The source sheet controls those fields: local edits may be replaced by the next sync or reload. Independent synced queries are read from SQLite. There is no write-back. Counts, tables, stage board, query status breakdown and filter options refresh after importing. The connected name, **Open Linked Sheet**, last successful sync time in IST, counts of added/updated/unchanged/rejected records and failures remain visible.
+Linked records are persisted in SQLite and merged into the shared lead workspace inside the same server transaction. Existing records and features remain available; a matching shared Lead ID receives the linked fields. The source sheet controls those fields: local edits may be replaced by the next sync or reload. Independent synced queries are read from SQLite. There is no write-back. Counts, tables, stage board, query status breakdown and filter options refresh after importing. The connected name, **Open Linked Sheet**, last successful sync time in IST, counts of added/updated/unchanged/rejected records and failures remain visible.
 
-Sync report counts describe the server’s imported records; a new server record matching a browser Lead ID updates that browser record rather than increasing its headcount. Rejected rows show tab, row, ID and reason; **Download all validation issues** includes the complete issue list. Existing JSON checkpoints cover browser workspace data. Back up the SQLite database as well to retain independent queries, connection settings and sync reports.
+Sync report counts describe imported records; a new imported record matching a shared Lead ID updates that record rather than increasing its headcount. Rejected rows show tab, row, ID and reason; **Download all validation issues** includes the complete issue list. Existing JSON checkpoints cover shared workspace data. Back up the SQLite database as well to retain independent queries, connection settings and sync reports.
 
-Automatic sync requires the server to remain running with `SCHEDULER_ENABLED=true` and **one scheduler-owning process**, as required by the existing messaging scheduler. It checks due work every minute, so a run may start up to a minute after the chosen interval. A sleeping host cannot refresh while asleep; manual sync still works when available. Open dashboards poll saved server changes every 30 seconds while visible. Failed network calls, permissions, headers or database writes preserve the last successfully saved data and sync timestamp. Correct the sheet/configuration, then retry. **Clear all dashboard data** also clears synced records and disables automatic sync; it retains connection settings for deliberate reconnection or manual sync.
+Automatic sync requires the server to remain running with `SCHEDULER_ENABLED=true` and **one scheduler-owning process**, as required by the existing messaging scheduler. It checks due work every minute, so a run may start up to a minute after the chosen interval. A sleeping host cannot refresh while asleep; manual sync still works when available. Open dashboards poll shared workspace changes every five seconds while visible and idle; spreadsheet status and independent queries refresh every 30 seconds. Failed network calls, permissions, headers or database writes preserve the last successfully saved data and sync timestamp. Correct the sheet/configuration, then retry. **Clear all dashboard data** also clears synced records and disables automatic sync; it retains connection settings for deliberate reconnection or manual sync.
 
 ### Verification
 
@@ -74,7 +86,7 @@ To remove one imported worksheet without resetting the dashboard, open **Data & 
 
 Configure the admin password on this computer by double-clicking `set_admin_password.bat` (or running `.venv/Scripts/python.exe set_admin_password.py` from this directory). The password must have at least 12 characters; only its hash is saved in the ignored file `data/admin_password.hash`. Changing an existing password requires the current password. Alternatively, administrators can configure `ADMIN_PASSWORD_HASH` in the private environment. Removal is disabled until a password is configured, and the server checks the password for each removal request.
 
-This local app stores imported data and checkpoints in browser IndexedDB. The password protects the dashboard's removal controls, not direct access to browser storage or operating-system files. Removal affects the current browser's imported copy. The original workbook remains available for deliberate re-import.
+Imported data and checkpoints are stored in the shared SQLite database. Admin-authorized import removal affects all users of this CRM; a shared checkpoint is saved first. The original Excel file remains available for deliberate re-import. The admin password protects the removal control; this application still requires an authenticated deployment or protected tunnel for access control.
 
 VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with:
 
@@ -171,15 +183,15 @@ Open **Leads & Queries**. Each stage has **+ Add record** to enter a hospital di
 
 Enter the hospital and contact details, requirement, quotation value, follow-up date, and remark, then click **Save record**. Use **Edit record** on a saved card to change its details. Changing **Status** moves that record to the corresponding stage and updates the counts. **Move existing** lets you assign an existing lead to a stage. Lead records are stored separately from the Hospital & Clients master; editing a lead does not update its original client record.
 
-CRM records are saved in the current browser's IndexedDB and remain after refresh. Hospital & Clients, RGHS, Leads & Queries, Already Served, Doctors, and HOSPkart Potential Leads each have independent record stores. On first load, legacy RGHS-tagged clients and active pipeline clients are copied into the RGHS and Leads stores; the originals remain in Hospital & Clients, and later edits do not synchronize between copies. Existing localStorage records automatically migrate on the same site address: the app copies and verifies them before removing their old copies. Unreadable records and unrelated site data are kept. Imports and their safety checkpoints save in one transaction, so a failed write preserves the previous state. IndexedDB avoids localStorage's small quota; the browser's available disk space still applies. Keep using the same address (`localhost` and `127.0.0.1` have separate browser storage). Use **Data & backups** to download a checkpoint before changing browsers or clearing browser storage. JSON downloads work even if saving a browser checkpoint fails. SmartBot and WhatsApp API features require the Python server.
+CRM records, call history, feedback, independent workspace sections, imported invoice worksheets and recent checkpoints are saved transactionally in the server SQLite database. Every user of the same CRM installation sees the same saved data. IndexedDB is only a recovery/cache copy. Legacy browser records migrate automatically when the shared database is uninitialized; a browser with other legacy records cannot overwrite an initialized shared workspace. A preserved local copy is available to download and explicitly restore after review.
 
-Chrome, Edge, and different site addresses have separate saved data. To transfer everything, click **Prepare full data backup** in the original browser, then **Restore JSON checkpoint** in the new browser. This transfers clients, calls, feedback, imported sections, and every invoice worksheet. Storage that is blocked or unreadable is reported on the page; unreadable saved values are retained for recovery. Recent backup retention adapts to browser storage limits. Imports and checkpoint restores roll back if saving fails.
+Chrome, Edge and different devices now share records when they connect to the same CRM server. Other open dashboards check for updates every five seconds while visible and idle; active editors and import confirmations are preserved. Stale saves are rejected instead of overwriting another user’s changes. Unsaved changes are kept as a downloadable recovery copy. JSON checkpoints restore the shared dashboard for everyone, so review the confirmation carefully.
 
 ## Reset the dashboard permanently
 
 In **Data & backups**, acknowledge permanent deletion, type **RESET DASHBOARD**, and click **Clear all dashboard data**. Reset removes all clients, calls, feedback, imported sections, work colors, saved checkpoints, email/WhatsApp history and scheduled follow-ups. **No backup is created**, saved checkpoints become **0**, and records remain empty after refreshing. Other dashboard tabs in the same browser reload to show the cleared data. Credentials and sender configuration remain available for new work.
 
-The Python server must be running to clear messaging history. If a follow-up is currently being processed, wait for it to finish and reset again. Backend errors leave the browser records and checkpoints in place. Previously downloaded files and messages already sent to customers cannot be recalled by resetting the dashboard.
+The Python server must be running to clear shared CRM and messaging history. Reset is one server transaction and affects every user, including shared imports, checkpoints, synced records and follow-up history. A stale reset is rejected. Previously downloaded files and messages already sent to customers cannot be recalled. The source spreadsheet and connection credentials remain available, with automatic spreadsheet sync disabled after reset.
 
 ## Dashboard layout
 
@@ -203,7 +215,7 @@ The Orders workspace tracks quotations, finalized orders, demand fulfilled, and 
 
 Use the color dropdown beside a hospital to set a manual color, or select **Automatic** to use saved activity again. A manual color stays in place after subsequent activity. **Remarks / color** opens the work-status editor; blue requires a remark describing the query, follow-up, or order. These controls are also available in Already Served, Doctors, and Potential Leads, where each imported section retains its own work status. The client form includes **Hospital work color** as well.
 
-Colors and remarks are saved in the current browser and included in JSON checkpoints. Main client Excel exports include the resolved work color, work status label and manual/automatic mode. Email activity is synchronized from the backend while the dashboard is open. Keep a checkpoint before clearing browser data or changing browsers.
+Colors and remarks are saved in the shared database and included in JSON checkpoints. Main client Excel exports include the resolved work color, work status label and manual/automatic mode. Email activity is synchronized while the dashboard is open. Keep a database backup and download a checkpoint before a major import or restore.
 
 ## Email follow-ups
 
@@ -282,7 +294,7 @@ Verification: install `requirements-dev.txt`, then run `python -m unittest disco
 
 Before using this as your live HOSPkart CRM:
 
-1. Move hospital/client master data from browser IndexedDB into the server database when shared access across users or devices is needed.
+1. Add application sign-in and per-user permissions before exposing the shared CRM publicly.
 2. Add user login and role permissions for calling executives vs managers.
 3. Encrypt or restrict access to contact information and API credentials.
 4. Keep an explicit WhatsApp opt-in field and opt-out status for every hospital/contact.
@@ -292,7 +304,7 @@ Before using this as your live HOSPkart CRM:
 
 ## Team training (35 minutes)
 
-Use a separate browser profile and fictional records for practice. Keep the live dashboard in its existing browser and site address. Start with the Windows launch script or `python production.py`; open the server URL instead of the HTML file. Download a full JSON checkpoint before practising with existing records. Practice messages should remain drafts.
+Use a separate CRM server and temporary database with fictional records for practice. A separate browser profile connected to the same server shares the live data and is not an isolated training environment. Start with the Windows launch script or `python production.py`; open the server URL instead of the HTML file.
 
 | Time | Exercise | What the trainee should check |
 | --- | --- | --- |

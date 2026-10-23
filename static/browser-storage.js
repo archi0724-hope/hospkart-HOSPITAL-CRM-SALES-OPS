@@ -55,6 +55,6 @@ async function importJsonCheckpoint(input) {
     if(!await askImportConfirmation(`Restore ${snapshot.clients.length} clients, ${snapshot.calls.length} call notes, and ${snapshot.invoiceWorkbook?.sheets.length||0} workbook sheets from ${file.name}? Current data will first be backed up.`))return;
     if(dashboardResetting||version!==dashboardDataVersion)return;
     await applyDashboardCheckpoint(snapshot,'Before JSON checkpoint restore');
-    toast('Checkpoint restored. All imported sheets and saved CRM records are available in this browser.');
+    toast('Checkpoint restored to the shared database. All users can see the restored CRM records and imported sheets.');
   }catch(error){toast('Checkpoint restore failed: '+error.message);}finally{input.value='';}
 }

@@ -21,11 +21,11 @@ async function performDashboardReset() {
   try {
     const response = await fetch('/api/dashboard/reset', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({confirmed_reset: true, confirmation: 'RESET DASHBOARD'})
+      body: JSON.stringify({confirmed_reset: true, confirmation: 'RESET DASHBOARD', workspace_revision: sharedWorkspaceRevision})
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || 'Could not clear server history.');
-    await writeDashboardValues({hk_v2_clients:[],hk_v2_calls:[],hk_v2_feedback:[],hk_v2_backups:[],hk_v2_segments:{served:[],doctors:[],potential:[]},hk_v2_rghs:[],hk_v2_leads:[],hk_v2_served:[],hk_v2_doctors:[],hk_v2_potential:[],hk_v2_invoice_workbook:null,hk_v2_reset_revision:String(Date.now())});
+    await acceptWorkspaceState(result.workspace);
     invoiceWorkbook=null;renderInvoiceDashboard();
     clients = [];
     calls = [];
