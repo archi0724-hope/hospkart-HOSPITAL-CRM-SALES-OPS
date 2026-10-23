@@ -35,14 +35,16 @@ function validateCheckpoint(snapshot) {
   const segments=snapshot.segments||{served:[],doctors:[],potential:[]};
   const sections=snapshot.sections||{rghs:snapshot.clients.filter(record=>/rghs/i.test(JSON.stringify(record))).map((record,index)=>({...clone(record),id:'HK-R'+String(index+1).padStart(4,'0')})),leads:snapshot.clients.filter(record=>!['Completed / Served','Lost / Cancelled','Delivered'].includes(record.status)).map((record,index)=>({...clone(record),id:'HK-L'+String(index+1).padStart(4,'0')})),served:segments.served||[],doctors:segments.doctors||[],potential:segments.potential||[]};
   if(!['served','doctors','potential'].every(key=>validRecordArray(segments[key]||[],true))||!['rghs','leads','served','doctors','potential'].every(key=>validRecordArray(sections[key],true))||!validInvoiceSnapshot(snapshot.invoiceWorkbook||null))throw new Error('The checkpoint contains invalid imported records.');
-  return {...snapshot,segments,sections,invoiceWorkbook:snapshot.invoiceWorkbook||null};
+  if(snapshot.complaints!==undefined&&!validRecordArray(snapshot.complaints))throw new Error('The checkpoint contains invalid complaints.');
+  return {...snapshot,segments,sections,invoiceWorkbook:snapshot.invoiceWorkbook||null,complaints:snapshot.complaints===undefined?clone(complaints):snapshot.complaints};
 }
 async function applyDashboardCheckpoint(input,reason) {
   const snapshot=validateCheckpoint(input);
   const nextBackups=reason?[makeDashboardBackup(reason),...backups].slice(0,10):backups;
   const sections=clone(snapshot.sections);
-  await writeDashboardValues({hk_v2_clients:snapshot.clients,hk_v2_calls:snapshot.calls,hk_v2_feedback:snapshot.feedback,hk_v2_segments:{served:sections.served,doctors:sections.doctors,potential:sections.potential},hk_v2_rghs:sections.rghs,hk_v2_leads:sections.leads,hk_v2_served:sections.served,hk_v2_doctors:sections.doctors,hk_v2_potential:sections.potential,hk_v2_invoice_workbook:snapshot.invoiceWorkbook,hk_v2_backups:nextBackups});
+  await writeDashboardValues({hk_v2_clients:snapshot.clients,hk_v2_calls:snapshot.calls,hk_v2_feedback:snapshot.feedback,hk_v2_complaints:snapshot.complaints,hk_v2_segments:{served:sections.served,doctors:sections.doctors,potential:sections.potential},hk_v2_rghs:sections.rghs,hk_v2_leads:sections.leads,hk_v2_served:sections.served,hk_v2_doctors:sections.doctors,hk_v2_potential:sections.potential,hk_v2_invoice_workbook:snapshot.invoiceWorkbook,hk_v2_backups:nextBackups});
   clients=clone(snapshot.clients);calls=clone(snapshot.calls);feedback=clone(snapshot.feedback);sectionRecords=sections;segmentData={served:sections.served,doctors:sections.doctors,potential:sections.potential};invoiceWorkbook=clone(snapshot.invoiceWorkbook);backups=nextBackups;
+  complaints=clone(snapshot.complaints);
   populateFilters();filtered=[...clients];renderAll();
 }
 async function importJsonCheckpoint(input) {

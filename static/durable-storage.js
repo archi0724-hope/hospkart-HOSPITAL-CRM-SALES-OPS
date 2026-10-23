@@ -1,6 +1,6 @@
 // IndexedDB is a recovery/cache copy; shared-workspace.js saves to SQLite first.
 const dashboardStorage = new Map();
-const dashboardKeys = ['hk_v2_clients','hk_v2_calls','hk_v2_feedback','hk_v2_segments','hk_v2_rghs','hk_v2_leads','hk_v2_served','hk_v2_doctors','hk_v2_potential','hk_v2_invoice_workbook','hk_v2_backups','hk_v2_reset_revision'];
+const dashboardKeys = ['hk_v2_clients','hk_v2_calls','hk_v2_feedback','hk_v2_complaints','hk_v2_segments','hk_v2_rghs','hk_v2_leads','hk_v2_served','hk_v2_doctors','hk_v2_potential','hk_v2_invoice_workbook','hk_v2_backups','hk_v2_reset_revision'];
 let dashboardDatabase;
 let dashboardReady = false;
 let browserCacheReady = false;

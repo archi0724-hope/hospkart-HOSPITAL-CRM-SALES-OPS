@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 from request_security import crm_request_origin_allowed
+from complaints import valid_complaints
 
 SECTIONS = ('rghs', 'leads', 'served', 'doctors', 'potential')
 MAX_REQUEST = 64 * 1024 * 1024
@@ -17,7 +18,7 @@ MAX_REQUEST = 64 * 1024 * 1024
 
 def empty_values():
     return {
-        'hk_v2_clients': [], 'hk_v2_calls': [], 'hk_v2_feedback': [],
+        'hk_v2_clients': [], 'hk_v2_calls': [], 'hk_v2_feedback': [], 'hk_v2_complaints': [],
         'hk_v2_segments': {'served': [], 'doctors': [], 'potential': []},
         **{'hk_v2_' + section: [] for section in SECTIONS},
         'hk_v2_invoice_workbook': None, 'hk_v2_backups': [],
@@ -43,7 +44,7 @@ def init_schema(conn):
 def read(conn):
     row = conn.execute('SELECT * FROM crm_workspace WHERE id=1').fetchone()
     return {'revision': row['revision'], 'initialized': bool(row['initialized']),
-            'values': json.loads(row['data']), 'updated_at': row['updated_at']}
+            'values': {**empty_values(), **json.loads(row['data'])}, 'updated_at': row['updated_at']}
 
 
 def record_array(value, named=False):
@@ -65,6 +66,8 @@ def validate_patch(values):
     for key, value in values.items():
         if key == 'hk_v2_invoice_workbook':
             valid = valid_workbook(value)
+        elif key == 'hk_v2_complaints':
+            valid = valid_complaints(value)
         elif key == 'hk_v2_reset_revision':
             valid = isinstance(value, str) and len(value) <= 128
         elif key == 'hk_v2_segments':
@@ -73,6 +76,7 @@ def validate_patch(values):
             valid = record_array(value) and len(value) <= 10 and all(
                 record_array(item.get('clients'), True) and record_array(item.get('calls')) and
                 record_array(item.get('feedback')) and valid_workbook(item.get('invoiceWorkbook')) and
+                valid_complaints(item.get('complaints', [])) and
                 (item.get('sections') is None or isinstance(item['sections'], dict) and
                  all(record_array(item['sections'].get(section, []), True) for section in SECTIONS)) and
                 (item.get('segments') is None or isinstance(item['segments'], dict) and

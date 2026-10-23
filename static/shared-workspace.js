@@ -37,6 +37,7 @@ function parsedBrowserValues() {
 function completeBrowserValues(values) {
   const result = {...values};
   result.hk_v2_clients ||= []; result.hk_v2_calls ||= []; result.hk_v2_feedback ||= [];
+  result.hk_v2_complaints ||= [];
   result.hk_v2_backups ||= []; result.hk_v2_segments ||= {served: [], doctors: [], potential: []};
   const legacy = {
     rghs: result.hk_v2_clients.filter(row => /rghs/i.test(JSON.stringify(row))).map((row, index) => ({...row, id: 'HK-R' + String(index + 1).padStart(4, '0')})),
@@ -49,7 +50,7 @@ function completeBrowserValues(values) {
 }
 
 function hasBrowserBusinessData(values) {
-  return ['clients', 'calls', 'feedback', 'rghs', 'leads', 'served', 'doctors', 'potential', 'backups'].some(key => values['hk_v2_' + key]?.length) || !!values.hk_v2_invoice_workbook || !!values.hk_v2_reset_revision;
+  return ['clients', 'calls', 'feedback', 'complaints', 'rghs', 'leads', 'served', 'doctors', 'potential', 'backups'].some(key => values['hk_v2_' + key]?.length) || !!values.hk_v2_invoice_workbook || !!values.hk_v2_reset_revision;
 }
 
 function browserValuesCheckpoint(values) {
@@ -57,6 +58,7 @@ function browserValuesCheckpoint(values) {
   const complete = completeBrowserValues(values);
   return {id: 'browser-recovery-' + Date.now(), createdAt: new Date().toISOString(), reason: 'Preserved browser records',
     clients: complete.hk_v2_clients, calls: complete.hk_v2_calls, feedback: complete.hk_v2_feedback,
+    complaints: complete.hk_v2_complaints,
     segments: complete.hk_v2_segments, sections: Object.fromEntries(['rghs', 'leads', 'served', 'doctors', 'potential'].map(scope => [scope, complete['hk_v2_' + scope]])),
     invoiceWorkbook: complete.hk_v2_invoice_workbook};
 }
@@ -157,6 +159,7 @@ async function initializeDashboardStorage() {
 function restoreSharedDashboardModels() {
   const selection = Object.fromEntries(['statusFilter', 'cityFilter', 'executiveFilter', 'clientTypeFilter'].map(id => [id, document.getElementById(id).value]));
   clients = load('hk_v2_clients', []); calls = load('hk_v2_calls', []); feedback = load('hk_v2_feedback', []); backups = load('hk_v2_backups', []);
+  complaints = load('hk_v2_complaints', []);
   sectionRecords = Object.fromEntries(['rghs', 'leads', 'served', 'doctors', 'potential'].map(scope => [scope, load('hk_v2_' + scope, [])]));
   segmentData = Object.fromEntries(['served', 'doctors', 'potential'].map(scope => [scope, sectionRecords[scope]]));
   invoiceWorkbook = JSON.parse(dashboardStorage.get('hk_v2_invoice_workbook') || 'null');

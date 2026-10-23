@@ -1,0 +1,14 @@
+<section id="complaintsSection" class="card sheet-card" aria-labelledby="complaintsHeading">
+  <div class="card-head"><div><h2 id="complaintsHeading">Complaints</h2><small>Review customer issues, assign an owner, and record how they were resolved.</small></div><button class="btn primary" type="button" onclick="openComplaintEditor()">+ Add Complaint</button></div>
+  <div class="card-body">
+    <div class="summary-strip"><div class="summary-box"><b id="complaintTotal">0</b><span>Total complaints</span></div><div class="summary-box"><b id="complaintPending">0</b><span>Open / in progress</span></div><div class="summary-box"><b id="complaintResolved">0</b><span>Resolved / closed</span></div><div class="summary-box"><b id="complaintUrgent">0</b><span>High / urgent pending</span></div></div>
+    <div class="sheet-filters">
+      <div class="field"><label for="complaintSearch">Search complaints</label><input id="complaintSearch" class="control" type="search" placeholder="ID, customer, subject, details…" oninput="renderComplaints()"></div>
+      <div class="field"><label for="complaintStatusFilter">Status</label><select id="complaintStatusFilter" class="control" onchange="renderComplaints()"><option value="">All statuses</option><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select></div>
+      <div class="field"><label for="complaintPriorityFilter">Priority</label><select id="complaintPriorityFilter" class="control" onchange="renderComplaints()"><option value="">All priorities</option><option>Low</option><option>Medium</option><option>High</option><option>Urgent</option></select></div>
+      <div class="field"><label for="complaintOwnerFilter">Assigned owner</label><select id="complaintOwnerFilter" class="control" onchange="renderComplaints()"><option value="">All owners</option></select></div>
+    </div>
+    <p id="complaintResultCount" class="mini-help" aria-live="polite"></p>
+  </div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Complaint / Customer</th><th>Subject / Details</th><th>Priority</th><th>Status</th><th>Assigned owner</th><th>Reported / Updated</th><th>Resolution</th><th>Action</th></tr></thead><tbody id="complaintRows"></tbody></table></div>
+</section>

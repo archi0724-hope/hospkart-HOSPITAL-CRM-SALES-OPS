@@ -1,0 +1,18 @@
+<dialog id="complaintDialog" class="sheet-export-dialog complaint-dialog" aria-labelledby="complaintDialogTitle">
+  <form id="complaintForm" onsubmit="saveComplaint(event)">
+    <h2 id="complaintDialogTitle">Add Complaint</h2><p id="complaintReference" class="mini-help"></p>
+    <input id="complaintEditId" type="hidden">
+    <div class="form-grid">
+      <div class="field full"><label for="complaintRelatedRecord">Related lead / customer (optional)</label><select id="complaintRelatedRecord" class="control" onchange="selectComplaintRecord()"><option value="">No linked record</option></select></div>
+      <div class="field full"><label for="complaintCustomer">Customer / Hospital name</label><input id="complaintCustomer" class="control" maxlength="300" required></div>
+      <div class="field full"><label for="complaintSubject">Complaint subject</label><input id="complaintSubject" class="control" maxlength="200" required></div>
+      <div class="field full"><label for="complaintDetails">Complaint details</label><textarea id="complaintDetails" class="control" rows="4" maxlength="10000" required></textarea></div>
+      <div class="field"><label for="complaintPriority">Priority</label><select id="complaintPriority" class="control"><option>Low</option><option selected>Medium</option><option>High</option><option>Urgent</option></select></div>
+      <div class="field"><label for="complaintStatus">Status</label><select id="complaintStatus" class="control" onchange="updateComplaintResolutionRequirement()"><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select></div>
+      <div class="field full"><label for="complaintOwner">Assigned owner</label><input id="complaintOwner" class="control" maxlength="200" placeholder="Team member responsible"></div>
+      <div class="field full"><label id="complaintResolutionLabel" for="complaintResolution">Resolution notes</label><textarea id="complaintResolution" class="control" rows="3" maxlength="10000" placeholder="What was done to resolve the complaint?"></textarea></div>
+    </div>
+    <p id="complaintSaveError" class="sheet-error" role="alert"></p>
+    <div class="toolbar-actions"><button id="complaintCancelButton" class="btn" type="button" onclick="closeComplaintEditor()">Cancel</button><button id="complaintSaveButton" class="btn primary" type="submit">Save Complaint</button></div>
+  </form>
+</dialog>

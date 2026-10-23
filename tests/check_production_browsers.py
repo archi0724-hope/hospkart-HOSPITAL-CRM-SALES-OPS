@@ -151,7 +151,8 @@ def check_legacy_browser_storage():
                     page.fill('#chatInput','Explain served entries and distinct clients')
                     page.click('.chat-send')
                     page.locator('.chat-msg.bot').get_by_text('Synthetic SmartBot check: 4 served entries, 2 clients, 3 invoices.',exact=True).wait_for()
-                    assert chat_requests[-1]['context']['invoice_analysis']['invoice_value']==600
+                    assert set(chat_requests[-1]['context'])=={'selected_client','current_view'}
+                    assert 'invoice_analysis' not in chat_requests[-1]['context'], 'Saved metrics are now read by the server'
                     page.evaluate('toggleChat(false)')
                     page.unroute('**/api/quotesaarthi/chat',respond_to_chat)
                     assert page.evaluate("segmentData.served.filter(record=>record.name==='Test Alpha').length")==3

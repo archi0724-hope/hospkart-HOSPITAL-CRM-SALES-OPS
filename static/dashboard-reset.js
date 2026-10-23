@@ -30,6 +30,7 @@ async function performDashboardReset() {
     clients = [];
     calls = [];
     feedback = [];
+    complaints = [];
     backups = [];
     segmentData = {served: [], doctors: [], potential: []};
     sectionRecords = {rghs: [], leads: [], served: [], doctors: [], potential: []};

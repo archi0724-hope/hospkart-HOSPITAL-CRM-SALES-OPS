@@ -21,6 +21,8 @@ class QuoteSaarthiTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name);self.catalog=self.root/'products.csv';make_catalogue(self.catalog)
+        self.db_patch=patch.object(app,'DB_PATH',self.root/'crm.db');self.db_patch.start();self.addCleanup(self.db_patch.stop)
+        app.init_db()
         self.service=QuoteSaarthiService(self.catalog,self.root)
         self.env=patch.dict(os.environ,{'QUOTESAARTHI_USE_OLLAMA':'false'});self.env.start();self.addCleanup(self.env.stop)
         self.provider=patch('quotesaarthi.runtime.get_service',return_value=self.service);self.provider.start();self.addCleanup(self.provider.stop)
@@ -112,12 +114,14 @@ class QuoteSaarthiTests(unittest.TestCase):
             self.assertEqual(self.client.post('/api/quotesaarthi/chat',json=body).status_code,400)
         self.assertEqual(self.chat('hello','x'*43).status_code,409)
 
-    @patch('app.smartbot_reply',return_value='Source-backed CRM summary')
-    def test_crm_summary_keeps_existing_context(self, reply):
+    @patch('app.smartbot_reply')
+    def test_crm_summary_uses_saved_database_instead_of_browser_metrics(self, reply):
         context={'kpis':{'workspace_records':2168}}
         response=self.client.post('/api/quotesaarthi/chat',json={'message':'Summarize the CRM dashboard','context':context})
-        self.assertEqual(response.json['reply'],'Source-backed CRM summary')
-        reply.assert_called_once_with('Summarize the CRM dashboard',context)
+        self.assertIn('0 workspace records',response.json['reply'])
+        self.assertNotIn('2168',response.json['reply'])
+        self.assertEqual(response.json['knowledge']['source'],'Shared CRM database')
+        reply.assert_not_called()
 
     def test_missing_catalogue_does_not_break_dashboard(self):
         with patch('quotesaarthi.runtime.get_service',return_value=QuoteSaarthiService(self.root/'missing.csv',self.root)):

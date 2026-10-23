@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlparse
 
 from flask import Blueprint, jsonify, request, send_file
 import shared_workspace
+import form_responses
 from request_security import crm_request_origin_allowed
 
 MAX_ROWS = 20000
@@ -117,12 +118,13 @@ class GoogleSheets:
             if file.get('mimeType') != 'application/vnd.google-apps.spreadsheet':
                 raise SheetError('Unsupported format: Excel files stored in Drive are not imported. Open the file in Google Sheets, choose File → Save as Google Sheets, and connect the new native Sheets link.')
             meta = self.get(session, 'https://sheets.googleapis.com/v4/spreadsheets/' + file_id,
-                            {'fields': 'spreadsheetId,properties(title),sheets(properties(sheetId,title,sheetType,gridProperties))'})
+                            {'fields': 'spreadsheetId,properties(title,locale,timeZone),sheets(properties(sheetId,title,sheetType,gridProperties))'})
             tabs = [dict(id=sheet['properties']['sheetId'], name=sheet['properties']['title'])
                     for sheet in meta.get('sheets', []) if sheet['properties'].get('sheetType', 'GRID') == 'GRID']
             if not tabs:
                 raise SheetError('This spreadsheet has no supported grid worksheets.')
             return {'id': file_id, 'name': meta['properties']['title'], 'tabs': tabs,
+                    'locale': meta['properties'].get('locale', 'en_US'), 'timezone': meta['properties'].get('timeZone', 'Asia/Kolkata'),
                     'url': 'https://docs.google.com/spreadsheets/d/' + file_id + '/edit'}
 
     def read(self, file_id, tabs, headers_only=False):
@@ -144,6 +146,9 @@ def init_schema(conn):
             revision INTEGER NOT NULL DEFAULT 0, last_success TEXT,
             last_attempt TEXT, last_error TEXT, last_result TEXT,
             last_attempt_epoch REAL NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS sheet_source_preferences (
+            id INTEGER PRIMARY KEY CHECK(id=1), settings TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS sheet_leads (id TEXT PRIMARY KEY, data TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sheet_queries (
@@ -248,7 +253,10 @@ class SheetSync:
             connection = self.connection(conn)
             result = {'ok': True, **self.records(conn), 'connection': None,
                       'fields': FIELDS, 'required': REQUIRED,
+                      'response_fields': form_responses.FIELDS, 'response_required': form_responses.REQUIRED,
                       'google_configured': bool(os.getenv('GOOGLE_APPLICATION_CREDENTIALS') or os.getenv('GOOGLE_SHEETS_USE_ADC') == 'true')}
+            source = conn.execute('SELECT settings FROM sheet_source_preferences WHERE id=1').fetchone()
+            result['source'] = json.loads(source['settings']) if source else None
             if connection:
                 result['connection'] = {**json.loads(connection['settings']),
                     'revision': connection['revision'], 'last_success': connection['last_success'],
@@ -259,10 +267,19 @@ class SheetSync:
     def settings(self, body):
         file_id = parse_link(body.get('link'))
         info = self.provider.inspect(file_id)
-        selected = body.get('tabs')
+        mode = body.get('mode', 'tabs')
+        if mode not in ('tabs', 'form_responses'):
+            raise SheetError('Choose separate worksheets or a Google Form response worksheet.')
+        if mode == 'form_responses':
+            tab = body.get('response_tab')
+            if not isinstance(tab, str) or tab not in {tab['name'] for tab in info['tabs']}:
+                raise SheetError('Select the form response worksheet.')
+            selected = {'leads': tab, 'queries': tab}
+        else:
+            selected = body.get('tabs')
         if not isinstance(selected, dict) or set(selected) != set(FIELDS) or any(not isinstance(selected.get(kind), str) for kind in FIELDS):
             raise SheetError('Select a Leads tab and a Queries tab.')
-        if selected['leads'] == selected['queries']:
+        if mode == 'tabs' and selected['leads'] == selected['queries']:
             raise SheetError('Choose separate Leads and Queries tabs.')
         available = {tab['name'] for tab in info['tabs']}
         if any(title not in available for title in selected.values()):
@@ -271,12 +288,21 @@ class SheetSync:
         if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes not in (0, 5, 15, 30, 60):
             raise SheetError('Automatic refresh must be off, 5, 15, 30 or 60 minutes.')
         mappings = body.get('mappings')
-        if not isinstance(mappings, dict):
+        if mode == 'tabs' and not isinstance(mappings, dict):
             raise SheetError('Map the source columns before previewing.')
-        return {'link': info['url'], 'id': file_id, 'name': info['name'], 'tabs': selected,
-                'mappings': mappings, 'auto_minutes': minutes}
+        settings = {'link': info['url'], 'id': file_id, 'name': info['name'], 'tabs': selected,
+                    'mappings': mappings or {}, 'auto_minutes': minutes}
+        if mode == 'form_responses':
+            settings.update(mode=mode, response_tab=tab, response_mapping=body.get('response_mapping'),
+                            form_link=form_responses.parse_form_link(body.get('form_link', ''), SheetError),
+                            source_locale=info.get('locale', 'en_US'), source_timezone=info.get('timezone', 'Asia/Kolkata'))
+        return settings
 
     def snapshot(self, settings, conn):
+        if settings.get('mode') == 'form_responses':
+            values = self.provider.read(settings['id'], [settings['response_tab']])
+            rows, errors, warnings = form_responses.convert(values[0], settings, validate_rows, SheetError)
+            return {'settings': settings, 'rows': rows, 'errors': errors, 'warnings': warnings}
         values = self.provider.read(settings['id'], [settings['tabs'][kind] for kind in FIELDS])
         rows, errors = {}, []
         for kind, source in zip(FIELDS, values):
@@ -298,6 +324,9 @@ class SheetSync:
 
     def plan(self, conn, snapshot, apply=False):
         shared_leads = []
+        form_mode = snapshot['settings'].get('mode') == 'form_responses'
+        query_lead_ids = {item['data']['lead_id'] for item in snapshot['rows']['queries']}
+        existing_shared_ids = {row['id'] for row in shared_workspace.read(conn)['values']['hk_v2_leads']} if form_mode and apply else set()
         report = {kind: {'added': 0, 'updated': 0, 'unchanged': 0,
                          'rejected': sum(error['kind'] == kind for error in snapshot['errors'])}
                   for kind in FIELDS}
@@ -308,11 +337,19 @@ class SheetSync:
                 old = json.loads(existing['data']) if existing else {}
                 merged = {**old, **incoming}
                 if kind == 'leads' and not merged.get('status'):
-                    merged['status'] = 'New Lead'
+                    merged['status'] = 'Query Received' if form_mode and incoming['id'] in query_lead_ids else 'New Lead'
                 if kind == 'queries' and not merged.get('status'):
                     merged['status'] = 'Open'
+                if kind == 'queries' and form_mode:
+                    if existing and merged != old:
+                        merged['updated_date'] = self.now_iso()
+                    elif not existing:
+                        merged['updated_date'] = merged['created_date']
                 if apply and kind == 'leads':
-                    shared_leads.append(merged)
+                    shared_row = dict(merged)
+                    if form_mode and merged['id'] in existing_shared_ids:
+                        shared_row.pop('status', None)  # Response forms do not own the CRM pipeline stage.
+                    shared_leads.append(shared_row)
                 changed = merged != old
                 report[kind]['updated' if existing and changed else 'unchanged' if existing else 'added'] += 1
                 if apply and changed:
@@ -322,7 +359,7 @@ class SheetSync:
                         conn.execute('INSERT INTO sheet_queries(id,lead_id,data) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET lead_id=excluded.lead_id,data=excluded.data', (merged['id'], merged['lead_id'], json_text(merged)))
         if apply:
             shared_workspace.merge_sheet_leads(conn, shared_leads)
-        return {'counts': report, 'errors': snapshot['errors']}
+        return {'counts': report, 'errors': snapshot['errors'], 'warnings': snapshot.get('warnings', [])}
 
     def preview(self, body):
         with self.lock:
@@ -358,6 +395,10 @@ class SheetSync:
                 last_result=excluded.last_result,last_error=NULL,last_attempt_epoch=excluded.last_attempt_epoch''',
                 (json_text(snapshot['settings']), preview['revision'] + 1, now, now, json_text(report), datetime.now(timezone.utc).timestamp()))
             conn.execute('DELETE FROM sheet_previews')
+            settings = snapshot['settings']
+            if settings.get('mode') == 'form_responses':
+                source = {key: settings[key] for key in ('link', 'form_link', 'mode')}
+                conn.execute('INSERT INTO sheet_source_preferences VALUES (1,?) ON CONFLICT(id) DO UPDATE SET settings=excluded.settings', (json_text(source),))
         return self.status()
 
     def sync(self, due=False):
@@ -491,13 +532,27 @@ def register(app, db_conn, now_iso):
     def inspect():
         return jsonify(ok=True, **service.provider.inspect(parse_link(body().get('link'))))
 
+    @routes.post('/source')
+    def save_source():
+        data = body()
+        file_id = parse_link(data.get('link'))
+        form_link = form_responses.parse_form_link(data.get('form_link', ''), SheetError)
+        mode = data.get('mode', 'form_responses')
+        if mode not in ('tabs', 'form_responses'):
+            raise SheetError('Invalid spreadsheet source mode.')
+        source = {'link': 'https://docs.google.com/spreadsheets/d/' + file_id + '/edit',
+                  'form_link': form_link, 'mode': mode}
+        with db_conn() as conn:
+            conn.execute('INSERT INTO sheet_source_preferences VALUES (1,?) ON CONFLICT(id) DO UPDATE SET settings=excluded.settings', (json_text(source),))
+        return jsonify(service.status())
+
     @routes.post('/columns')
     def columns():
         data = body()
         file_id = parse_link(data.get('link'))
         info = service.provider.inspect(file_id)
         titles = data.get('tabs')
-        if not isinstance(titles, list) or len(titles) != 2 or any(title not in [tab['name'] for tab in info['tabs']] for title in titles):
+        if not isinstance(titles, list) or len(titles) not in (1, 2) or any(title not in [tab['name'] for tab in info['tabs']] for title in titles):
             raise SheetError('Select valid Leads and Queries tabs.')
         values = service.provider.read(file_id, titles, headers_only=True)
         return jsonify(ok=True, sheets=[{'headers': headers_for(rows), 'sample': rows[1:6]} for rows in values])

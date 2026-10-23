@@ -9,6 +9,24 @@ let sheetPollTimer = null;
 let sheetExportView = 'leads';
 const sheetElement = id => document.getElementById(id);
 const sheetEscape = value => escapeHtml(String(value ?? ''));
+const isFormResponseSource = () => sheetElement('sheetSourceMode').value === 'form_responses';
+
+function changeSheetSourceMode() {
+  invalidateSheetMapping();
+  const form = isFormResponseSource();
+  sheetElement('sheetQueriesTabField').classList.toggle('hidden', form);
+  sheetElement('sheetResponseHelp').classList.toggle('hidden', !form);
+  sheetElement('sheetLeadsTabLabel').textContent = form ? 'Form response worksheet' : 'Leads worksheet';
+}
+
+function saveSpreadsheetSource() {
+  return runSheetAction(async () => {
+    const result = await sheetRequest('source', {link: sheetElement('sheetLinkInput').value,
+      form_link: sheetElement('sheetFormLinkInput').value, mode: sheetElement('sheetSourceMode').value});
+    await applySheetState(result);
+    toast('Links saved. Check access, map columns, and preview before importing.');
+  });
+}
 
 async function sheetRequest(path, data) {
   const response = await fetch('/api/spreadsheet/' + path, {
@@ -76,6 +94,11 @@ function inspectSpreadsheet() {
     invalidateSheetInspection();
     sheetInspection = await sheetRequest('inspect', {link: sheetElement('sheetLinkInput').value});
     const saved = sheetState?.connection;
+    if (saved?.id === sheetInspection.id) {
+      sheetElement('sheetSourceMode').value = saved.mode || 'tabs';
+      sheetElement('sheetFormLinkInput').value = saved.form_link || sheetState?.source?.form_link || '';
+    } else if (sheetInspection.tabs.length === 1) sheetElement('sheetSourceMode').value = 'form_responses';
+    changeSheetSourceMode();
     for (const [kind, id] of [['leads', 'sheetLeadsTab'], ['queries', 'sheetQueriesTab']]) {
       const select = sheetElement(id);
       select.replaceChildren(...sheetInspection.tabs.map(tab => new Option(tab.name, tab.name)));
@@ -93,6 +116,12 @@ const sheetColumnAliases = {
   lead_id: ['lead id'], created_date: ['created at', 'created date'], updated_date: ['updated at', 'updated date'],
   details: ['details', 'query details', 'requirement'], last: ['last', 'last contact'], quote: ['quote'], order: ['order']
 };
+const responseColumnAliases = {
+  response_id: ['Response ID'], timestamp: ['Timestamp'], submission_type: ['Type of Submission'],
+  name: ['Customer Full Name'], company: ['Hospital or Organization Name'], mobile: ['Customer Contact Number'],
+  email: ['Customer Email Address'], executive: ['Lead Generator Name'], created_date: ['Date of Lead Generation'],
+  product: ['Products or Services of Interest'], details: ['Detailed Description of Lead or Query'], priority: ['Urgency Level']
+};
 function loadSpreadsheetColumns() {
   return runSheetAction(async () => {
     invalidateSheetMapping();
@@ -100,23 +129,25 @@ function loadSpreadsheetColumns() {
     if (!sheetState) await applySheetState(await sheetRequest('status'));
     const result = await sheetRequest('columns', {
       link: sheetElement('sheetLinkInput').value,
-      tabs: [sheetElement('sheetLeadsTab').value, sheetElement('sheetQueriesTab').value]
+      tabs: isFormResponseSource() ? [sheetElement('sheetLeadsTab').value] : [sheetElement('sheetLeadsTab').value, sheetElement('sheetQueriesTab').value]
     });
     const mappingRoot = sheetElement('sheetMappings');
-    ['leads', 'queries'].forEach((kind, index) => {
+    (isFormResponseSource() ? ['responses'] : ['leads', 'queries']).forEach((kind, index) => {
       const group = document.createElement('div');
-      const title = document.createElement('h3'); title.textContent = kind === 'leads' ? 'Leads columns' : 'Queries columns'; group.append(title);
+      const title = document.createElement('h3'); title.textContent = kind === 'responses' ? 'Form response columns' : kind === 'leads' ? 'Leads columns' : 'Queries columns'; group.append(title);
       const headers = result.sheets[index].headers.filter(Boolean);
       const saved = sheetState?.connection;
-      for (const [field, label] of sheetState.fields[kind]) {
+      const fields = kind === 'responses' ? sheetState.response_fields : sheetState.fields[kind];
+      const required = kind === 'responses' ? sheetState.response_required : sheetState.required[kind];
+      for (const [field, label] of fields) {
         const row = document.createElement('div'); row.className = 'sheet-mapping-field';
         const name = document.createElement('label'); name.htmlFor = 'sheetMap-' + kind + '-' + field;
-        name.textContent = label + (sheetState.required[kind].includes(field) ? ' *' : '');
+        name.textContent = label + (required.includes(field) ? ' *' : '');
         const select = document.createElement('select'); select.id = name.htmlFor; select.className = 'control';
         select.dataset.sheetKind = kind; select.dataset.sheetField = field;
         select.append(new Option('Do not map', ''), ...headers.map(header => new Option(header, header)));
-        const old = saved?.id === sheetInspection.id ? saved.mappings[kind]?.[field] : '';
-        const aliases = [label.toLowerCase(), field.toLowerCase(), ...(sheetColumnAliases[field] || [])];
+        const old = saved?.id === sheetInspection.id ? (kind === 'responses' ? saved.response_mapping?.[field] : saved.mappings[kind]?.[field]) : '';
+        const aliases = [label.toLowerCase(), field.toLowerCase(), ...(kind === 'responses' ? responseColumnAliases[field] || [] : sheetColumnAliases[field] || [])].map(value => value.toLowerCase());
         const automatic = headers.find(header => aliases.includes(header.toLowerCase()));
         select.value = headers.includes(old) ? old : automatic || '';
         select.addEventListener('change', invalidateSheetPreview);
@@ -148,22 +179,29 @@ function downloadSheetIssues(preview) {
 function previewSpreadsheet() {
   return runSheetAction(async () => {
     invalidateSheetPreview();
-    const mappings = {leads: {}, queries: {}};
+    const mappings = {leads: {}, queries: {}, responses: {}};
     sheetElement('sheetMappings').querySelectorAll('select[data-sheet-field]').forEach(select => {
       if (select.value) mappings[select.dataset.sheetKind][select.dataset.sheetField] = select.value;
     });
     const result = await sheetRequest('preview', {
       link: sheetElement('sheetLinkInput').value,
       tabs: {leads: sheetElement('sheetLeadsTab').value, queries: sheetElement('sheetQueriesTab').value},
-      mappings, auto_minutes: Number(sheetElement('sheetAutoMinutes').value)
+      mappings: {leads: mappings.leads, queries: mappings.queries}, auto_minutes: Number(sheetElement('sheetAutoMinutes').value),
+      mode: sheetElement('sheetSourceMode').value, response_tab: sheetElement('sheetLeadsTab').value,
+      response_mapping: mappings.responses, form_link: sheetElement('sheetFormLinkInput').value
     });
     sheetPreviewToken = result.token;
     sheetPreviewReportData = result.report;
     sheetElement('sheetPreviewReport').innerHTML = sheetReportHtml(result.report, true);
     sheetElement('sheetPreviewRows').innerHTML = ['leads', 'queries'].map(kind => {
-      const fields = sheetState.fields[kind].filter(([field]) => mappings[kind][field]);
+      const fields = sheetState.fields[kind].filter(([field]) => isFormResponseSource() || mappings[kind][field]);
       return '<h4>' + sheetEscape(kind) + '</h4><div class="table-wrap sheet-preview-table"><table class="data-table"><thead><tr>' + fields.map(([, label]) => '<th>' + sheetEscape(label) + '</th>').join('') + '</tr></thead><tbody>' + result.preview[kind].map(row => '<tr>' + fields.map(([field]) => '<td>' + sheetEscape(row[field]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
     }).join('');
+    if (result.report.warnings?.length) {
+      const warning = document.createElement('p'); warning.className = 'mini-help';
+      warning.textContent = result.report.warnings.map(item => 'Row ' + item.row + ': ' + item.reason).join(' · ');
+      sheetElement('sheetPreviewReport').append(warning);
+    }
     sheetElement('sheetPreviewStep').classList.remove('hidden');
   });
 }
@@ -210,6 +248,11 @@ async function applySheetState(result) {
 
 function renderSheetConnection() {
   const connection = sheetState?.connection;
+  const source = sheetState?.source;
+  const formLink = source?.form_link || connection?.form_link;
+  sheetElement('leadQueryFormLink').classList.toggle('hidden', !formLink);
+  if (formLink) sheetElement('leadQueryFormLink').href = formLink;
+  sheetElement('leadQueryFormStatus').textContent = formLink ? (connection?.mode === 'form_responses' && source?.link !== undefined && source.link !== connection.link ? 'Form link saved. Its selected spreadsheet differs from the active connection; preview and import to activate it.' : connection?.mode === 'form_responses' ? 'Form response worksheet: ' + connection.response_tab + '. Use Sync Now to import the latest saved responses.' : 'Form link saved. Spreadsheet access and response import still need to be configured.') : 'Save a Google Form link below to let your team submit leads and queries.';
   sheetElement('sheetStatusText').textContent = connection ? 'Connected: ' + connection.name : 'No spreadsheet connected.';
   sheetElement('sheetSyncTime').textContent = connection ? 'Last successful sync: ' + (connection.last_success ? new Date(connection.last_success).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'}) + ' IST' : 'Not yet synced') + ' · Automatic refresh: ' + (connection.auto_minutes ? connection.auto_minutes + ' minutes' : 'Off') : '';
   sheetElement('sheetConnectionError').textContent = connection?.last_error || '';
@@ -336,7 +379,13 @@ async function initializeSpreadsheetSync() {
   try {
     await applySheetState(await sheetRequest('status'));
     const connection = sheetState?.connection;
-    if (connection) sheetElement('sheetLinkInput').value = connection.link;
+    const source = sheetState?.source || connection;
+    if (source) {
+      sheetElement('sheetLinkInput').value = source.link;
+      sheetElement('sheetSourceMode').value = source.mode || 'tabs';
+      sheetElement('sheetFormLinkInput').value = source.form_link || '';
+      changeSheetSourceMode();
+    }
   } catch (error) {
     sheetElement('sheetConnectionError').textContent = 'Spreadsheet status unavailable. Existing CRM records are kept. ' + error.message;
   }

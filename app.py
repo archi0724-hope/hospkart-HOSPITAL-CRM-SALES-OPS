@@ -870,11 +870,19 @@ def quotesaarthi_chat():
     context=body.get('context') or {}
     if not isinstance(context,dict):
         return jsonify(ok=False,error='CRM context must be an object.'),400
-    if body.get('mode')=='crm' or re.search(r'\b(?:crm|dashboard|follow[- ]?ups?|feedback message)\b',message,re.I):
+    from quotesaarthi import crm as crm_knowledge
+    if body.get('mode')=='crm' or crm_knowledge.matches(message):
         try:
-            return jsonify(ok=True,reply=smartbot_reply(message,context),session_id=token,exports=[],assistant='QuoteSaarthi')
-        except Exception as error:
-            return jsonify(ok=False,error=str(error)),503
+            with db_conn() as conn:
+                conn.execute('BEGIN')
+                knowledge = crm_knowledge.build_knowledge(conn)
+            response = jsonify(ok=True,reply=crm_knowledge.reply(message,knowledge,context),session_id=token,exports=[],assistant='QuoteSaarthi',
+                               knowledge={'revision':knowledge['revision'],'checked_at':knowledge['checked_at'],'source':knowledge['source']})
+            response.headers['Cache-Control'] = 'no-store, private'
+            return response
+        except Exception:
+            app.logger.exception('QuoteSaarthi CRM knowledge unavailable')
+            return jsonify(ok=False,error='Saved CRM data could not be read. Your records were not changed; retry when the shared database is available.'),503
     try:
         from quotesaarthi.runtime import get_service
         options=body.get('options') or {}
@@ -888,6 +896,21 @@ def quotesaarthi_chat():
     except Exception:
         app.logger.exception('QuoteSaarthi request failed')
         return jsonify(ok=False,error='QuoteSaarthi could not complete this request. Please try again.'),503
+
+
+@app.get('/api/quotesaarthi/knowledge')
+def quotesaarthi_knowledge_status():
+    from quotesaarthi import crm as crm_knowledge
+    try:
+        with db_conn() as conn:
+            conn.execute('BEGIN')
+            knowledge = crm_knowledge.build_knowledge(conn)
+        response = jsonify(ok=True, **crm_knowledge.public_status(knowledge))
+        response.headers['Cache-Control'] = 'no-store, private'
+        return response
+    except Exception:
+        app.logger.exception('QuoteSaarthi knowledge check failed')
+        return jsonify(ok=False,error='CRM knowledge unavailable. Saved data was not changed.'),503
 
 
 @app.post('/api/quotesaarthi/download/<filename>')

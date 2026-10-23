@@ -2,6 +2,7 @@
 
 ## Shared uploads for all users
 
+
 Upload Excel or save a CRM record once: everyone opening this same CRM server sees the saved data. All six workspaces, call history, feedback, uploaded workbook sheets, remarks and recent checkpoints use the existing SQLite database at `CRM_DATA_DIR/hospkart_crm.db` (default `data/hospkart_crm.db`). No separate database account is required for local sharing. A new shared database starts empty; fictional demo records are not automatically published.
 
 After updating, reload the CRM in the original browser/site address where your uploads were saved. Valid saved records automatically migrate if the shared database is still uninitialized. The previous browser copy is preserved. If shared records already exist, the banner offers **Download preserved browser data** and **Restore preserved data for all users**; restoration requires confirmation and creates a checkpoint first. Unreadable older data is retained as a raw recovery download.
@@ -14,7 +15,28 @@ To use this across different networks, all users need the same hosted or protect
 
 Backend checks: `.venv\Scripts\python.exe -m unittest discover -s tests`. Multi-user browser checks: `.venv\Scripts\python.exe tests/check_shared_workspace.py` (or `tests/check_production_browsers.py`). They use temporary SQLite databases, synthetic uploads and independent Chrome/Edge profiles to verify migration, visibility, imports, worksheets, backups, concurrent saves, failures and restart persistence.
 
+## Complaints in Leads & Queries
+
+Open **Leads & Queries → Complaints → + Add Complaint**. Enter the customer/hospital, subject and details; optionally link an existing lead or customer record, choose a priority, and assign an owner. Review issues using search and the status, priority and owner filters. The summary shows total, pending, resolved/closed and high/urgent pending complaints.
+
+Use **View / Update** to work through **Open → In Progress → Resolved → Closed**. **Resolve** opens the complaint with resolution notes required; it does not mark an issue resolved until the notes are saved. Resolved complaints retain the resolution and timestamp, and **Reopen** makes the same complaint ID active again. Complaints are saved in the shared SQLite workspace, refresh for other idle users, survive restarts and are included in JSON checkpoints. Restoring an older checkpoint without a complaints field preserves the current complaints. Full dashboard reset clears complaints for everyone. No automatic customer messages are sent.
+
+Verification: `python tests/check_complaints.py` uses temporary data and separate Chrome/Edge profiles to check creation, shared visibility, required resolutions, reopening, filters, safe text rendering, backup compatibility, reload and mobile controls. Backend complaint validation, reset and stale-edit protection run with `python -m unittest discover -s tests`.
+
+
 ## Leads and Queries: Excel export and linked Google Sheets
+
+### Google Form responses
+
+In **Leads & Queries → Connect Spreadsheet**, save the spreadsheet link and the full Google Forms respondent link. The dashboard shows **Open Lead / Query Form** for the team. Saving links only saves setup preferences; it does not verify Google permissions or begin importing. In Google Forms, check **Responses → Link to Sheets** and select this same spreadsheet. The CRM cannot change or verify a form's response destination from its respondent link.
+
+Choose **Google Form responses (one worksheet)**, check access, select the response tab and load columns. The importer suggests mappings for Timestamp, Lead Generator Name, Customer Full Name, Customer Contact Number, Customer Email Address, Type of Submission, Hospital or Organization Name, Products or Services of Interest, Detailed Description of Lead or Query, Date of Lead Generation and Urgency Level. Preview the results before importing. Existing separate Leads/Queries tab connections still work.
+
+Each response creates one lead. **New Sales Lead** and **New Lead** create only a lead. **Product Inquiry**, **Customer Query**, **Existing Customer Query**, **Query**, **Service Inquiry** and **Service Request** also create one related query. Other submission types are rejected for review. Different submissions from the same customer remain separate leads. The hospital/organization becomes the lead name when supplied; the customer's name stays in Contact Person. Empty/missing email placeholders such as “not provided” are omitted with a preview warning; malformed email addresses are rejected. Form dates use the spreadsheet's locale and time zone, and phone numbers stay text.
+
+Map a unique immutable **Response ID** if available. Otherwise the submission timestamp acts as the source ID. Keep that timestamp unique and unchanged; duplicate timestamps are rejected and changing a timestamp creates a different identity. IDs use the source spreadsheet, response tab and immutable response key, so sorting rows or editing names/details does not create duplicates. Keep the response tab name unchanged. The CRM does not add columns or write back to the source. Removed responses never delete saved records. Form sync keeps existing CRM pipeline stages and query statuses; query content changes update the last-updated timestamp.
+
+Private form-response sync uses the same server Google credentials and Viewer sharing described below. Preview/import and automatic refresh need those credentials on the server running the dashboard, including Render separately. A connected Google account in an assistant does not supply credentials to Flask. Keep the sheet restricted and share it with the service account; never commit its key file. Google Forms may require sign-in according to the owner's settings.
 
 Open **Leads & Queries → Export Excel**, or use **Export Excel** on the Dashboard. The download is a real `.xlsx` workbook with **Leads** and **Queries** worksheets, readable headers, frozen header rows, filters, and date cells. IDs and phone numbers are text, including leading zeros. Only documented business fields are exported; credentials and internal fields are excluded. Unknown historical dates stay blank; legacy display dates that cannot be parsed are retained as text. Timestamp cells are exported in UTC.
 
@@ -59,7 +81,7 @@ For a complete illustrated walkthrough, see [README-2.md](README-2.md). Use [PPT
 
 ## QuoteSaarthi setup and team practice
 
-QuoteSaarthi replaces the floating HOSPkart SmartBot. Product search, vendor comparison and single-product draft quotations use the handover CSV catalogue locally, without an OpenAI key. The dashboard's CRM summaries and WhatsApp AI drafts still use the existing optional OpenAI configuration. This integration uses the handover agent and keyword catalogue search; it does not fine-tune a model or install the archive's virtual environment/vector database.
+QuoteSaarthi replaces the floating HOSPkart SmartBot. Product search, vendor comparison and single-product draft quotations use the handover CSV catalogue locally, without an OpenAI key. CRM summaries and reviewed WhatsApp follow-up drafts read saved CRM data locally without an AI key. This integration uses the handover agent and keyword catalogue search; it does not fine-tune a model or install the archive's virtual environment/vector database.
 
 Install the project requirements, then prepare your private catalogue from the supplied ZIP or a CSV:
 
@@ -78,7 +100,7 @@ Practise in a separate browser profile:
 3. Ask `Quote IV Set 50 units with 5% discount and GST 18%`, substituting the verified product and correct tax rate. Missing quantity or GST produces a clarification, not an assumed quote.
 4. Select **Download JSON** or **Download PDF**. Review the product, vendor, quantity, discount, GST and final amount before sharing. These are drafts, not issued tax invoices, and do not automatically create CRM orders or quotations.
 5. Use the header's **New conversation** control to clear product selection without deleting CRM data. Conversations are separate per browser tab and expire after two hours of inactivity or a server restart. Start a fresh conversation if an old session expires.
-6. Use **CRM summary** for the existing source-backed dashboard summary. It requires the optional OpenAI configuration; product search and quote drafts do not.
+6. Use **CRM summary**, **Queries**, **Complaints**, **Follow-ups** or **Test CRM knowledge**. Saved data is read on every CRM question; new uploads need no manual training step or AI key.
 
 One product is supported per draft. Send separate requests for multiple products. The guided invoice workflow collects customer details and confirmed GST, but its downloads remain draft quotations. No customer data or message sending is required for training.
 
@@ -93,7 +115,7 @@ Imported data and checkpoints are stored in the shared SQLite database. Admin-au
 VS Code-ready demo that combines the HOSPkart hospital/client CRM dashboard with:
 
 - floating QuoteSaarthi icon in the bottom-right corner
-- local catalogue assistant with optional OpenAI-powered CRM summaries
+- local catalogue assistant and automatic shared-database CRM knowledge
 - official Meta WhatsApp Cloud API connection
 - WhatsApp handoff for each hospital/client
 - manual WhatsApp message sending
@@ -145,7 +167,7 @@ pip install -r requirements.txt
 
 Copy `.env.example` to `.env` and add your credentials.
 
-Optional configuration for QuoteSaarthi CRM summaries and AI message drafts:
+Optional configuration for legacy OpenAI chat and WhatsApp automation replies (the QuoteSaarthi CRM widget uses local saved data):
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
@@ -325,11 +347,15 @@ Use a separate CRM server and temporary database with fictional records for prac
 
 **Understanding the supplied invoice workbook:** the verified workbook has 38 distinct hospitals/clients, 61 non-cancelled invoices, 202 non-cancelled served item entries and ₹31,35,013.91 in invoice value. The cancelled sheet has 152 item rows representing 6 invoices. The Already Served entry headcount is 202; 38 is its distinct-client count. Counts describe this workbook, not every future upload. The overall workspace headcount can exceed both because it includes records and linked copies from all workspaces.
 
-## SmartBot response training
+## Automatic QuoteSaarthi CRM knowledge and testing
 
-SmartBot receives a fresh, bounded summary of all six workspaces, distinct-client counts, invoice metrics, the selected hospital and up to 12 follow-up records. Full follow-up queue counts are supplied separately. Large contexts are shortened as valid JSON with an explicit truncation flag. Invoice analysis covers all available invoice source rows; it does not automatically inherit the dashboard table filters.
+QuoteSaarthi reads the latest saved SQLite workspace and independent queries in a consistent read transaction on each CRM question. It never relies on browser-provided totals, names or remarks. The browser sends only the selected record ID/workspace and current view. A new upload, spreadsheet sync or saved edit is immediately available to the next question; no vector index or model retraining is needed. Saved Google Sheet links alone do not import rows. Unsaved edits and unavailable sources are not guessed.
 
-The response instructions teach the assistant to name the workspace, distinguish served entries from distinct clients, avoid double-counting invoice value, explain unavailable sources, and ask for a selected hospital before drafting a hospital-specific message. Spreadsheet cells and remarks are treated as data rather than instructions. Chat provides guidance and drafts; record changes, message sending, import deletion and reset require the application's own controls.
+The widget supports all-workspace summaries, per-workspace counts/statuses, queries, pending or resolved complaints, overdue/today follow-up queues, hospital/name/ID lookup, deduplicated invoice totals, connection guidance and reviewed message drafts. Answers show their saved revision and explain that browser filters are not applied. The server date is evaluated in Asia/Kolkata on every request. Workspace copies and repeated service entries count separately; distinct name/city combinations are a separate measure. Query fallback matches the existing dashboard when a lead is marked Query Received and has no independent query. Follow-up queues include closed-stage records with saved dates, matching the dashboard. Lists show at most 12 records with full queue counts.
+
+**Test CRM knowledge** runs read-only data checks for missing/duplicate record IDs within workspaces, invalid follow-up dates, missing query/lead relationships and invalid invoice totals. Checks run on every CRM question and when the widget opens; the status displays the latest checked revision. These are data checks, not a guarantee of every possible answer's correctness. Failed database reads produce an error instead of stale or invented answers. Chat cannot modify CRM records, resolve complaints, send messages or delete imports. CRM questions use local deterministic replies and do not send CRM records to an external model for training or inference. Catalogue pricing and quote generation keep their existing separate workflow.
+
+Automated tests run on GitHub pushes/PRs. Run `.venv\Scripts\python.exe -m unittest discover -s tests` locally, then `python tests/check_crm_knowledge.py` and `python tests/check_quotesaarthi.py` with the development dependencies installed. The browser checks use temporary synthetic data and verify the real widget, count accuracy, new uploads becoming available without reloading, query links, complaint handling, read-only behavior, message drafts, reload/mobile layout and existing catalogue exports in Chrome/Edge. The suite uses mocked provider failures where relevant and sends no customer messages. No secret, customer data or generated model weights are committed.
 
 | Practice prompt | Expected response to review |
 | --- | --- |
@@ -339,7 +365,7 @@ The response instructions teach the assistant to name the workspace, distinguish
 | “Delete only one Excel worksheet.” | Instructions for the admin removal controls, with no claim that chat deleted anything. |
 | “Confirm that my message was sent.” | No invented send confirmation; verify the application's messaging status. |
 
-This improves runtime instructions and data context; it does not fine-tune model weights. OpenAI configuration and billing are required for live replies. The automated suite checks context transmission, parsing, error handling and instructions using mocked provider responses; it does not prove the quality of every live model response. Review real drafts and totals before acting on them.
+This updates live knowledge and answer rules; it does not fine-tune model weights. The CRM widget works without OpenAI configuration or billing. The separate legacy `/api/chat` endpoint still uses its optional OpenAI configuration. Review drafts and source records before acting on them; automated checks cover the documented workflows rather than every possible natural-language question.
 
 ## Verification record — 9 October 2026
 
