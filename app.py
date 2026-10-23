@@ -23,6 +23,7 @@ from flask import Flask, jsonify, render_template, request, url_for, send_file
 from werkzeug.security import check_password_hash
 import spreadsheet_sync
 import shared_workspace
+from request_security import crm_request_origin_allowed
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -142,7 +143,7 @@ def authorize_import_removal():
     password_hash = admin_password_hash()
     if not password_hash:
         return jsonify({"ok": False, "error": "An administrator must configure the admin password before removing imports."}), 503
-    if request.headers.get("Origin") and request.headers["Origin"].rstrip("/") != request.host_url.rstrip("/"):
+    if not crm_request_origin_allowed(request):
         return jsonify({"ok": False, "error": "Use the dashboard on this server to remove imports."}), 403
     body = request.get_json(silent=True)
     if not isinstance(body, dict):

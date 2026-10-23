@@ -9,6 +9,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
+from request_security import crm_request_origin_allowed
 
 SECTIONS = ('rghs', 'leads', 'served', 'doctors', 'potential')
 MAX_REQUEST = 64 * 1024 * 1024
@@ -157,7 +158,7 @@ def register(app, db_conn):
     @routes.before_request
     def check_request():
         if request.method == 'POST':
-            if (request.headers.get('Origin') and request.headers['Origin'].rstrip('/') != request.host_url.rstrip('/')) or request.headers.get('Sec-Fetch-Site') == 'cross-site':
+            if not crm_request_origin_allowed(request):
                 raise WorkspaceError('Use the CRM dashboard on this server to save shared records.', 403)
             if not request.is_json or request.headers.get('X-CRM-Request') != '1':
                 raise WorkspaceError('Send a JSON request from the CRM dashboard.', 403)

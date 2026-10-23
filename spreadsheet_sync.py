@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlparse
 
 from flask import Blueprint, jsonify, request, send_file
 import shared_workspace
+from request_security import crm_request_origin_allowed
 
 MAX_ROWS = 20000
 MAX_COLUMNS = 200
@@ -456,7 +457,7 @@ def register(app, db_conn, now_iso):
     @routes.before_request
     def same_origin():
         if request.method == 'POST':
-            if (request.headers.get('Origin') and request.headers['Origin'].rstrip('/') != request.host_url.rstrip('/')) or request.headers.get('Sec-Fetch-Site') == 'cross-site':
+            if not crm_request_origin_allowed(request):
                 raise SheetError('Use the dashboard on this server to manage spreadsheet data.', 403)
             if request.headers.get('X-CRM-Request') != '1' or not request.is_json:
                 raise SheetError('Send a JSON request from the CRM dashboard.', 403)

@@ -61,14 +61,14 @@ function browserValuesCheckpoint(values) {
     invoiceWorkbook: complete.hk_v2_invoice_workbook};
 }
 
-async function preserveBrowserWorkspace(values, reason) {
-  browserWorkspaceRecovery = {values, reason, createdAt: new Date().toISOString()};
+async function preserveBrowserWorkspace(values, reason, visible = true) {
+  browserWorkspaceRecovery = {values, reason, visible, createdAt: new Date().toISOString()};
   if (browserCacheReady) {
     try {await databaseTransaction({hk_browser_recovery_v1: JSON.stringify(browserWorkspaceRecovery)});}
     catch (_) { browserCacheReady = false; /* Keep the original IndexedDB records untouched. */ }
   }
   const notice = document.getElementById('sharedRecoveryNotice');
-  if (notice) {notice.classList.remove('hidden'); document.getElementById('sharedRecoveryReason').textContent = reason;}
+  if (notice) {notice.classList.toggle('hidden', !visible); document.getElementById('sharedRecoveryReason').textContent = reason;}
 }
 
 function downloadBrowserWorkspaceRecovery() {
@@ -123,7 +123,7 @@ async function initializeDashboardStorage() {
     browserStorageNotice(error.message);
     await preserveBrowserWorkspace({__raw_browser_records: Object.fromEntries(dashboardStorage)}, 'Unreadable browser data was preserved. Download it for recovery; shared records will load separately.');
   }
-  if (browserWorkspaceRecovery) await preserveBrowserWorkspace(browserWorkspaceRecovery.values, browserWorkspaceRecovery.reason);
+  if (browserWorkspaceRecovery) await preserveBrowserWorkspace(browserWorkspaceRecovery.values, browserWorkspaceRecovery.reason, browserWorkspaceRecovery.visible !== false);
   try {
     let result = await workspaceRequest();
     const hasLocal = hasBrowserBusinessData(local);
@@ -131,6 +131,7 @@ async function initializeDashboardStorage() {
       await preserveBrowserWorkspace(local, 'Your previous browser records were preserved before moving to the shared database.');
       try {
         result = await workspaceRequest({revision: result.workspace.revision, values: completeBrowserValues(local), initialize_only: true});
+        await preserveBrowserWorkspace(local, 'Your previous browser records were successfully moved to the shared database. A recovery copy is retained.', false);
       } catch (error) {
         if (error.status === 409 && error.workspace) result = {workspace: error.workspace};
         else if (error.status === 400 || error.status === 413) browserStorageNotice('Previous browser records could not be migrated automatically. Download the preserved copy for review. ' + error.message);
@@ -143,8 +144,13 @@ async function initializeDashboardStorage() {
     dashboardReady = true;
   } catch (error) {
     dashboardReady = false;
-    workspaceStatus('Shared database unavailable · Changes cannot be saved until it reconnects.');
-    browserStorageNotice('The shared database could not be reached. Your browser copy is kept for recovery and export. Reload after the connection is restored. ' + error.message);
+    if (error.status === 403) {
+      workspaceStatus('Shared database responded, but this page was not permitted to save.');
+      browserStorageNotice('Your browser data is preserved. Saving from ' + window.location.origin + ' was rejected by the server address check. Open the CRM using its server link; HTTPS proxies must preserve the public Host or be configured as trusted. ' + error.message);
+    } else {
+      workspaceStatus('Shared database unavailable · Changes cannot be saved until it reconnects.');
+      browserStorageNotice('The shared database could not be reached. Your browser copy is kept for recovery and export. Reload after the connection is restored. ' + error.message);
+    }
   }
 }
 
