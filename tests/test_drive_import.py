@@ -5,7 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import app
+from crm_test_environment import app
 from drive_import import DriveWorkbook, XLSX
 from spreadsheet_sync import SheetError
 
@@ -67,6 +67,22 @@ class DriveImportTests(unittest.TestCase):
     def test_resource_key_kept_and_malicious_query_parameters_removed(self):
         response=self.post('save',{'link':LINK+'?resourcekey=safe-key_123&redirect=https://evil.test','label':'Resource link','target':'served'})
         self.assertEqual(response.json['links'][0]['link'],LINK+'?resourcekey=safe-key_123')
+
+    def test_saved_workbook_copy_is_persistent_and_explicit_not_a_live_drive_read(self):
+        from openpyxl import Workbook
+        item=self.save();book=Workbook();book.active.append(['Name']);book.active.append(['Synthetic Hospital'])
+        output=BytesIO();book.save(output);content=output.getvalue()
+        result=self.client.post('/api/drive-import/save-copy',data={'id':item['id'],'file':(BytesIO(content),'copy.xlsx')},headers=HEADERS)
+        self.assertEqual(result.status_code,200,result.json)
+        self.assertTrue(result.json['links'][0]['copy_saved_at'])
+        app.init_db()
+        with patch.object(app.drive_import_provider,'download') as google:
+            response=self.post('download',{'id':item['id'],'saved_copy':True})
+            self.assertEqual(response.data,content);response.close();google.assert_not_called()
+        invalid=self.client.post('/api/drive-import/save-copy',data={'id':item['id'],'file':(BytesIO(b'bad'),'copy.xlsx')},headers=HEADERS)
+        self.assertEqual(invalid.status_code,400)
+        response=self.post('download',{'id':item['id'],'saved_copy':True});self.assertEqual(response.data,content);response.close()
+        self.assertEqual(self.client.get('/api/workspace').json['workspace']['values']['hk_v2_clients'],[])
 
     def test_native_export_and_excel_download_use_fixed_google_endpoints(self):
         provider=DriveWorkbook();session=MagicMock();session.__enter__.return_value=session

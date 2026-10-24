@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import app
+from crm_test_environment import app
 from request_security import crm_request_origin_allowed
 
 

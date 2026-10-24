@@ -1,0 +1,12 @@
+<dialog id="excelImportSourceDialog" class="excel-map-dialog" aria-labelledby="excelImportSourceTitle">
+  <h2 id="excelImportSourceTitle">Import Excel</h2>
+  <p class="mini-help">Upload an Excel file from this computer, or paste its Google Drive / Google Sheets file link. Imports are saved in the shared CRM database after preview and confirmation.</p>
+  <div class="toolbar-actions"><button type="button" class="btn navy" onclick="chooseComputerExcelImport()">Choose file from computer</button><button type="button" class="btn" onclick="document.getElementById('excelImportSourceDialog').close();openDriveImport(excelImportTarget)">View saved Drive links</button></div>
+  <form id="excelDriveSourceForm" onsubmit="submitExcelDriveLink(event)">
+    <div class="field"><label for="excelDriveSourceLink">Google Drive / Sheets Excel link</label><input id="excelDriveSourceLink" type="url" class="control" required placeholder="https://drive.google.com/file/d/…/view"></div>
+    <div class="field"><label for="excelDriveSourceLabel">Workbook label</label><input id="excelDriveSourceLabel" class="control" required maxlength="120" value="Drive workbook"></div>
+    <p class="mini-help">Fetching the latest private Drive file needs Google access on this server. If an Excel copy was already saved to the CRM, you can choose that dated snapshot instead. Saving a link keeps it available for other CRM users.</p>
+    <p id="excelDriveSourceMessage" role="status"></p>
+    <div class="toolbar-actions"><button type="button" class="btn" onclick="document.getElementById('excelImportSourceDialog').close()">Cancel</button><button type="submit" class="btn primary" id="excelDriveSourceSubmit">Continue from Drive</button></div>
+  </form>
+</dialog>

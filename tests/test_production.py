@@ -11,7 +11,7 @@ from waitress import create_server
 from werkzeug.security import generate_password_hash
 from production import server_options
 
-import app
+from crm_test_environment import app
 
 
 class ProductionTests(unittest.TestCase):

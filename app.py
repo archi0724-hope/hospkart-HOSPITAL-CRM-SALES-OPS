@@ -23,6 +23,7 @@ from flask import Flask, jsonify, render_template, request, url_for, send_file
 from werkzeug.security import check_password_hash
 import spreadsheet_sync
 import drive_import
+import database
 import shared_workspace
 from request_security import crm_request_origin_allowed
 
@@ -30,6 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 DATA_DIR = Path(os.getenv("CRM_DATA_DIR", str(BASE_DIR / "data"))).expanduser().resolve()
 DB_PATH = DATA_DIR / "hospkart_crm.db"
+DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
 IST = ZoneInfo("Asia/Kolkata")
 CLIENT_NAME_HEADERS = {
     "name",
@@ -183,20 +185,14 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 @contextmanager
 def db_conn():
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON")
-    try:
-        with conn:
-            yield conn
-    finally:
-        conn.close()
+    with database.connect(DB_PATH, DATABASE_URL) as conn:
+        yield conn
 
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with db_conn() as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
+        if not DATABASE_URL: conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS message_log (
@@ -828,9 +824,15 @@ def import_excel():
 
 @app.get("/api/health")
 def health():
+    try:
+        with db_conn() as conn: conn.execute('SELECT 1').fetchone()
+    except sqlite3.Error:
+        return jsonify(ok=False, database_connected=False, error='The configured shared database is unavailable.'), 503
     return jsonify(
         {
             "ok": True,
+            "database_engine": 'postgresql' if DATABASE_URL else 'sqlite',
+            "database_connected": True,
             "openai_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
             "ai_provider": "OpenAI",
             "whatsapp_configured": whatsapp_configured(),
@@ -986,7 +988,7 @@ def schedule_whatsapp():
             cur = conn.execute(
                 """
                 INSERT INTO scheduled_messages(phone, client_name, scheduled_at, template_name, language, parameters_json, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?) RETURNING id
                 """,
                 (
                     phone,
@@ -998,7 +1000,7 @@ def schedule_whatsapp():
                     now_iso(),
                 ),
             )
-            job_id = cur.lastrowid
+            job_id = cur.fetchone()['id']
         return jsonify({"ok": True, "id": job_id})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
@@ -1073,7 +1075,7 @@ def receive_webhook():
 
 
 sheet_sync = spreadsheet_sync.register(app, db_conn, now_iso)
-drive_import_provider = drive_import.register(app, db_conn, now_iso)
+drive_import_provider = drive_import.register(app, db_conn, now_iso, lambda: {'engine': 'postgresql' if DATABASE_URL else 'sqlite', 'durable': bool(DATABASE_URL)})
 shared_workspace.register(app, db_conn)
 init_db()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")

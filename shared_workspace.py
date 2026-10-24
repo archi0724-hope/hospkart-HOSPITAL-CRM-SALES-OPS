@@ -37,7 +37,7 @@ def init_schema(conn):
         id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL,
         initialized INTEGER NOT NULL, data TEXT NOT NULL, updated_at TEXT
     )''')
-    conn.execute('INSERT OR IGNORE INTO crm_workspace(id,revision,initialized,data) VALUES(1,0,0,?)',
+    conn.execute('INSERT INTO crm_workspace(id,revision,initialized,data) VALUES(1,0,0,?) ON CONFLICT(id) DO NOTHING',
                  (json.dumps(empty_values()),))
 
 

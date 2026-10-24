@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-import app
+from crm_test_environment import app
 from quotesaarthi.crm import build_knowledge, matches, reply
 
 

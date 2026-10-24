@@ -4,7 +4,7 @@ from pathlib import Path
 from threading import Event, Thread
 from unittest.mock import patch
 
-import app
+from crm_test_environment import app
 
 
 class DashboardResetTests(unittest.TestCase):

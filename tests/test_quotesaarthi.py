@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import app
+from crm_test_environment import app
 from quotesaarthi.runtime import QuoteSaarthiService
 
 

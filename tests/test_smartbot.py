@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 import requests
-import app
+from crm_test_environment import app
 
 
 class SmartBotTests(unittest.TestCase):

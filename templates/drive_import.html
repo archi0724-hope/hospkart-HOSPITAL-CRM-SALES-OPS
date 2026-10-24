@@ -11,6 +11,6 @@
     </form>
     <p id="driveImportMessage" role="status" aria-live="polite"></p>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Shared workbook</th><th>Import section</th><th>Actions</th></tr></thead><tbody id="driveImportRows"></tbody></table></div>
-    <p class="mini-help">Private imports require Google server credentials with Drive read access and Viewer permission on the file. Otherwise open the link, download Excel from Drive, and use Import Excel. Imports retain the existing preview/confirmation and backup behavior. Links remain saved when dashboard records are reset; removing a link does not remove imported records.</p>
+    <p class="mini-help">Fetching the latest private Drive file requires Google server credentials and Viewer permission. Alternatively, attach its downloaded Excel copy: the CRM saves that copy in the database for everyone. Import saved copy uses that dated snapshot, without fetching newer Drive edits. Imports retain the existing mapping and backup behavior. Links and workbook copies remain when dashboard records are reset; removing a link does not remove imported records.</p>
   </div>
 </div>

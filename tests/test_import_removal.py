@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from werkzeug.security import generate_password_hash
 
-import app
+from crm_test_environment import app
 
 
 class ImportRemovalAuthorizationTests(unittest.TestCase):

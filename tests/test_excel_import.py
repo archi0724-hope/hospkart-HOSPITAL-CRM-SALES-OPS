@@ -5,7 +5,7 @@ from io import BytesIO
 
 from openpyxl import Workbook
 
-import app
+from crm_test_environment import app
 
 
 class ExcelImportTests(unittest.TestCase):

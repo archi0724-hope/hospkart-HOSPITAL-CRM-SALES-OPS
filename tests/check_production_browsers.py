@@ -11,7 +11,7 @@ from pathlib import Path
 from threading import Thread
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-import app
+from crm_test_environment import app
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 from waitress import create_server

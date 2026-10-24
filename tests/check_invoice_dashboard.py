@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Thread
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import app
+from crm_test_environment import app
 from playwright.sync_api import sync_playwright
 from werkzeug.serving import make_server
 from workbook_fixture import prepare_test_workbook

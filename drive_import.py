@@ -20,6 +20,10 @@ def init_schema(conn):
         id TEXT PRIMARY KEY, file_id TEXT NOT NULL, link TEXT NOT NULL,
         label TEXT NOT NULL, target TEXT NOT NULL, created_at TEXT NOT NULL,
         UNIQUE(file_id,target))''')
+    conn.executescript('''CREATE TABLE IF NOT EXISTS drive_workbook_copies (
+        file_id TEXT PRIMARY KEY, filename TEXT NOT NULL, mime TEXT NOT NULL,
+        content BLOB NOT NULL, saved_at TEXT NOT NULL, size_bytes INTEGER NOT NULL
+    );''')
 
 
 class DriveWorkbook(GoogleSheets):
@@ -70,16 +74,17 @@ class DriveWorkbook(GoogleSheets):
                 raise SheetError('Drive download failed or timed out. Existing saved records are unchanged.', 502) from None
 
 
-def register(app, db_conn, now_iso):
+def register(app, db_conn, now_iso, storage_info=None):
     routes = Blueprint('drive_import', __name__, url_prefix='/api/drive-import')
     provider = DriveWorkbook()
 
     @routes.before_request
     def guard():
         if request.method == 'POST':
-            if not crm_request_origin_allowed(request) or request.headers.get('X-CRM-Request') != '1' or not request.is_json:
+            copy_upload = request.endpoint == 'drive_import.save_copy'
+            if not crm_request_origin_allowed(request) or request.headers.get('X-CRM-Request') != '1' or (not copy_upload and not request.is_json) or (copy_upload and request.mimetype != 'multipart/form-data'):
                 raise SheetError('Use this CRM dashboard to manage Drive links.', 403)
-            if request.content_length and request.content_length > 8192:
+            if request.content_length and request.content_length > (MAX_BYTES + 8192 if copy_upload else 8192):
                 raise SheetError('Drive link request is too large.', 413)
 
     @routes.after_request
@@ -100,8 +105,11 @@ def register(app, db_conn, now_iso):
 
     def state():
         with db_conn() as conn:
-            rows = [dict(row) for row in conn.execute('SELECT id,link,label,target,created_at FROM shared_drive_links ORDER BY created_at,id')]
-        return jsonify(ok=True, links=rows)
+            rows = [dict(row) for row in conn.execute('''SELECT links.id,links.link,links.label,links.target,links.created_at,
+                copies.saved_at AS copy_saved_at,copies.filename AS copy_filename,copies.size_bytes AS copy_size
+                FROM shared_drive_links links LEFT JOIN drive_workbook_copies copies ON copies.file_id=links.file_id
+                ORDER BY links.created_at,links.id''')]
+        return jsonify(ok=True, links=rows, storage=storage_info() if storage_info else {'engine': 'sqlite', 'durable': False})
 
     @routes.get('')
     def status(): return state()
@@ -133,12 +141,42 @@ def register(app, db_conn, now_iso):
 
     @routes.post('/download')
     def download():
-        identifier = body().get('id')
+        data = body(); identifier = data.get('id')
         if not isinstance(identifier, str): raise SheetError('Choose a saved link.')
         with db_conn() as conn: row = conn.execute('SELECT file_id FROM shared_drive_links WHERE id=?', (identifier,)).fetchone()
         if not row: raise SheetError('This shared link was removed. Refresh the list.', 404)
+        if data.get('saved_copy') is True:
+            with db_conn() as conn: copy = conn.execute('SELECT filename,mime,content FROM drive_workbook_copies WHERE file_id=?', (row['file_id'],)).fetchone()
+            if not copy: raise SheetError('No saved workbook copy is available. Attach an Excel copy or configure Google access.', 404)
+            return send_file(BytesIO(bytes(copy['content'])), mimetype=copy['mime'], as_attachment=True, download_name=copy['filename'])
         content, name, suffix = provider.download(row['file_id'])
         return send_file(content, mimetype=XLSX if suffix == '.xlsx' else 'application/vnd.ms-excel', as_attachment=True, download_name=name)
+
+    @routes.post('/save-copy')
+    def save_copy():
+        identifier = request.form.get('id')
+        with db_conn() as conn: row = conn.execute('SELECT file_id FROM shared_drive_links WHERE id=?', (identifier,)).fetchone()
+        if not row: raise SheetError('Choose a saved Drive link before attaching its Excel copy.', 404)
+        file = request.files.get('file')
+        if not file or not file.filename: raise SheetError('Choose the downloaded Excel workbook for this Drive link.')
+        name = re.sub(r'[\x00-\x1f\x7f/\\]', '_', file.filename)[:180]
+        suffix = '.xlsx' if name.lower().endswith('.xlsx') else '.xls' if name.lower().endswith('.xls') else None
+        if not suffix: raise SheetError('Attach an .xlsx or .xls workbook copy.')
+        content = file.stream.read(MAX_BYTES + 1)
+        if len(content) > MAX_BYTES: raise SheetError('Workbook copies must be 16 MB or smaller.', 413)
+        try:
+            if suffix == '.xlsx':
+                from openpyxl import load_workbook
+                workbook = load_workbook(BytesIO(content), read_only=True, data_only=True); workbook.close()
+            else:
+                import xlrd
+                workbook = xlrd.open_workbook(file_contents=content, on_demand=True); workbook.release_resources()
+        except Exception:
+            raise SheetError('The attached file is not a readable Excel workbook. The previous saved copy was kept.') from None
+        with db_conn() as conn:
+            conn.execute('INSERT INTO drive_workbook_copies VALUES (?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET filename=excluded.filename,mime=excluded.mime,content=excluded.content,saved_at=excluded.saved_at,size_bytes=excluded.size_bytes',
+                         (row['file_id'],name,XLSX if suffix=='.xlsx' else 'application/vnd.ms-excel',content,now_iso(),len(content)))
+        return state()
 
     app.register_blueprint(routes)
     return provider

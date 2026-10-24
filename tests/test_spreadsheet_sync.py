@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-import app
+from crm_test_environment import app
 from spreadsheet_sync import GoogleSheets, SheetError, parse_link
 
 

@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-import app
+from crm_test_environment import app
 
 
 def prepare_test_workbook(directory):
