@@ -201,6 +201,7 @@ function commitDashboardRecords(values) {
 
 function sharedDashboardIsBusy() {
   return sharedWorkspaceSaving || dashboardResetting || (typeof sheetBusy !== 'undefined' && sheetBusy) ||
+    (typeof driveImportBusy !== 'undefined' && driveImportBusy) ||
     importRemovalSubmitting || document.querySelector('.drawer.open, dialog[open], #importConfirm:not(.hidden)') ||
     ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 }

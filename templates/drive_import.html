@@ -1,0 +1,16 @@
+<div class="card" id="driveImportCard">
+  <div class="card-head"><div><h2>Import from Google Drive</h2><small>Save workbook links for everyone using this CRM server.</small></div><button class="btn" type="button" onclick="copyCRMAddress()">Copy this CRM link</button></div>
+  <div class="card-body">
+    <p class="backup-note">Paste a Google Sheets or Drive Excel link. Saving a link does not import its rows or change its Google sharing permissions. Use Preview / import for a one-time import, or Connect for sync for ongoing Leads &amp; Queries updates. Files can stay private; each viewer needs Google access to open them.</p>
+    <p class="mini-help" id="driveServerNote"></p>
+    <form id="driveLinkForm" onsubmit="saveDriveImportLink(event)" class="form-grid">
+      <div class="field"><label for="driveImportLabel">Link label</label><input id="driveImportLabel" class="control" maxlength="120" required placeholder="Hospital workbook"></div>
+      <div class="field"><label for="driveImportTarget">Import section</label><select id="driveImportTarget" class="control"><option value="clients">Hospitals &amp; Clients / invoice workbook</option><option value="rghs">RGHS Data</option><option value="served">Already Served</option><option value="doctors">Doctors</option><option value="potential">Potential Leads</option><option value="leads">Leads &amp; Queries (connect for sync)</option></select></div>
+      <div class="field full"><label for="driveImportLink">Google Drive / Sheets file link</label><input id="driveImportLink" class="control" type="url" required placeholder="https://drive.google.com/file/d/…/view"></div>
+      <div class="field full"><button class="btn primary" type="submit" id="driveLinkSaveButton">Save shared Drive link</button></div>
+    </form>
+    <p id="driveImportMessage" role="status" aria-live="polite"></p>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>Shared workbook</th><th>Import section</th><th>Actions</th></tr></thead><tbody id="driveImportRows"></tbody></table></div>
+    <p class="mini-help">Private imports require Google server credentials with Drive read access and Viewer permission on the file. Otherwise open the link, download Excel from Drive, and use Import Excel. Imports retain the existing preview/confirmation and backup behavior. Links remain saved when dashboard records are reset; removing a link does not remove imported records.</p>
+  </div>
+</div>

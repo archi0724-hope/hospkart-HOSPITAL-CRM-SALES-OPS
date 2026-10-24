@@ -2,6 +2,22 @@
 
 ## Shared uploads for all users
 
+### Drive links in the import section
+
+Use **Import Drive link** beside **Import Excel**, or open **Data & backups → Import from Google Drive**. Give the link a label, choose the destination section and save a Google Sheets/Drive Excel file link. Every user on this same server sees the saved links, including after reopening the browser. Repeat saves of the same file/section update the label instead of creating duplicates. **Open Drive file** and **Copy Drive link** share the source link; Google still controls access. Keep private files restricted and grant the intended viewers access rather than publishing them.
+
+**Preview / import** reads a native Google Sheet or `.xlsx`/`.xls` file through authorized Google Drive access, then hands it to the existing Excel mapping, confirmation and checkpoint workflow. It does not save CRM records before confirmation. Importing into RGHS, Already Served, Doctors or Potential Leads replaces only that section, following the existing import confirmation. Imported data is shared with other users of this server. These are manual workbook imports; use **Connect for sync** for stable-ID, one-way Leads & Queries updates. Save-only links are not access-verified until an import/access check succeeds. Links remain after a dashboard record reset; removing a link never deletes imported records or the source file. Back up the SQLite database to retain link settings; workspace JSON checkpoints cover records separately.
+
+Private workbook import uses server Application Default Credentials with `https://www.googleapis.com/auth/drive.readonly`, the enabled Google Drive API and Viewer sharing to the service account. Existing Google credentials configured only for `drive.metadata.readonly` need additional read scope for workbook downloads. There is no dashboard credential-upload field. Native Sheets export is limited by Google's [10 MB export limit](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export); workbook imports are capped at 16 MB. Unsupported files, access failures and oversized downloads retain existing data. If server credentials are unavailable, open the private source link, download its Excel copy in Google Drive, and use **Import Excel**. Link-only sharing requires no server Google credentials.
+
+**Copy this CRM link** copies the hosted server address for users on other networks. A localhost address is only useful on that computer, so the local dashboard explains that a hosted URL is needed. Localhost and Render remain separate databases: save/upload/import on the hosted CRM for its users to see it. A Drive bookmark does not upload a local Excel file to Drive or mirror one CRM server into another.
+
+The Render Free web service uses an ephemeral filesystem, so its SQLite data and saved links cannot survive redeploys, restarts or idle spin-down. For lasting hosted data, configure a paid service with a persistent disk, set `CRM_DATA_DIR` inside that disk, and migrate/restore the existing database before relying on it; alternatively implement a durable external database. See [Render Free storage limits](https://render.com/docs/free#local-files-lost-on-redeploy). The Drive-link feature does not change the hosting plan or incur an automatic upgrade.
+
+Drive checks: `python -m unittest discover -s tests` and `python tests/check_drive_import.py`. They use temporary SQLite databases, synthetic workbook downloads and independent Chrome/Edge profiles to check shared links, private permissions failures, preview/confirmation, imported record visibility, reload and sync handoff. They do not publish customer workbooks or change Drive sharing.
+
+
+### Shared database behavior
 
 Upload Excel or save a CRM record once: everyone opening this same CRM server sees the saved data. All six workspaces, call history, feedback, uploaded workbook sheets, remarks and recent checkpoints use the existing SQLite database at `CRM_DATA_DIR/hospkart_crm.db` (default `data/hospkart_crm.db`). No separate database account is required for local sharing. A new shared database starts empty; fictional demo records are not automatically published.
 

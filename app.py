@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, url_for, send_file
 from werkzeug.security import check_password_hash
 import spreadsheet_sync
+import drive_import
 import shared_workspace
 from request_security import crm_request_origin_allowed
 
@@ -240,6 +241,7 @@ def init_db():
             """
         )
         spreadsheet_sync.init_schema(conn)
+        drive_import.init_schema(conn)
         shared_workspace.init_schema(conn)
 
 
@@ -1071,6 +1073,7 @@ def receive_webhook():
 
 
 sheet_sync = spreadsheet_sync.register(app, db_conn, now_iso)
+drive_import_provider = drive_import.register(app, db_conn, now_iso)
 shared_workspace.register(app, db_conn)
 init_db()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")

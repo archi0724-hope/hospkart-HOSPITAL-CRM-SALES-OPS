@@ -37,3 +37,6 @@ jobs:
       - run: python tests/check_crm_knowledge.py
         env:
           BROWSER_CHANNELS: chromium,chromium
+      - run: python tests/check_drive_import.py
+        env:
+          BROWSER_CHANNELS: chromium,chromium

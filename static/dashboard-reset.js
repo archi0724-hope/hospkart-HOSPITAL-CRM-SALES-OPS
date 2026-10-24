@@ -12,6 +12,7 @@ async function performDashboardReset() {
   if (emailSubmitting) { toast('Wait for the current email request to finish before resetting.'); return; }
   if (quoteSaarthiSubmitting) { toast('Wait for the QuoteSaarthi request to finish before resetting.'); return; }
   if (typeof sheetBusy !== 'undefined' && sheetBusy) { toast('Wait for the spreadsheet operation to finish before resetting.'); return; }
+  if (typeof driveImportBusy !== 'undefined' && driveImportBusy) { toast('Wait for the Drive import to finish before resetting.'); return; }
   dashboardResetting = true;
   dashboardDataVersion++;
   const button = document.getElementById('resetConfirmButton');
