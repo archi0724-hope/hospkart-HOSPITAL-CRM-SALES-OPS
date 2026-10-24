@@ -37,9 +37,11 @@ class DatabaseTests(unittest.TestCase):
         connection=database.PostgresConnection(raw)
         connection.execute('BEGIN IMMEDIATE')
         self.assertEqual(raw.execute.call_args_list[0].args[0],'BEGIN')
-        self.assertIn('pg_advisory_xact_lock',raw.execute.call_args_list[1].args[0])
+        self.assertIn('pg_advisory_xact_lock',raw.execute.call_args_list[-1].args[0])
+        self.assertIn('SET LOCAL statement_timeout',raw.execute.call_args_list[1].args[0])
         raw.reset_mock();connection.execute('BEGIN')
-        raw.execute.assert_called_once_with('BEGIN ISOLATION LEVEL REPEATABLE READ')
+        self.assertEqual(raw.execute.call_args_list[0].args[0],'BEGIN ISOLATION LEVEL REPEATABLE READ')
+        self.assertIn('SET LOCAL lock_timeout',raw.execute.call_args_list[-1].args[0])
 
     def test_rows_support_mapping_and_legacy_numeric_indexing(self):
         row=database.Row({'total':7,'label':'saved'})

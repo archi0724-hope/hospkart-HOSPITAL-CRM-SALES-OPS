@@ -42,23 +42,36 @@ class PostgresConnection:
     backend = 'postgresql'
     def __init__(self, connection): self.connection = connection
 
+    def _timeouts(self):
+        # Transaction-local settings work with PgBouncer and cannot leak to
+        # another client. Startup options are rejected by some pooled hosts.
+        self.connection.execute("SET LOCAL statement_timeout = '60s'")
+        self.connection.execute("SET LOCAL lock_timeout = '15s'")
+
     def execute(self, statement, parameters=None):
         try:
             command = statement.strip().rstrip(';').upper()
             if command == 'BEGIN IMMEDIATE':
                 if self.connection.info.transaction_status == TransactionStatus.IDLE:
                     self.connection.execute('BEGIN')
+                    self._timeouts()
                 return Cursor(self.connection.execute('SELECT pg_advisory_xact_lock(%s)', (WRITE_LOCK,)))
             if command == 'BEGIN':
                 if self.connection.info.transaction_status != TransactionStatus.IDLE:
                     raise sqlite3.ProgrammingError('A transaction is already active.')
-                return Cursor(self.connection.execute('BEGIN ISOLATION LEVEL REPEATABLE READ'))
+                cursor = self.connection.execute('BEGIN ISOLATION LEVEL REPEATABLE READ')
+                self._timeouts()
+                return Cursor(cursor)
+            if self.connection.info.transaction_status == TransactionStatus.IDLE:
+                self._timeouts()
             return Cursor(self.connection.execute(postgres_sql(statement, parameters is not None), parameters))
         except psycopg.Error:
             raise sqlite3.DatabaseError('PostgreSQL could not complete the database operation. Check connectivity and server logs.') from None
 
     def executemany(self, statement, parameters):
         try:
+            if self.connection.info.transaction_status == TransactionStatus.IDLE:
+                self._timeouts()
             cursor = self.connection.cursor()
             cursor.executemany(postgres_sql(statement, True), parameters)
             return Cursor(cursor)
@@ -88,7 +101,7 @@ def connect(sqlite_path, database_url=''):
         raise sqlite3.DatabaseError('DATABASE_URL must be a PostgreSQL connection URL.')
     try:
         connection = psycopg.connect(database_url, connect_timeout=15, row_factory=dict_row,
-            application_name='hospkart-crm', options='-c statement_timeout=60000 -c lock_timeout=15000')
+            application_name='hospkart-crm', prepare_threshold=None)
     except psycopg.Error:
         raise sqlite3.DatabaseError('The configured PostgreSQL database could not be reached. Existing data was not changed; SQLite fallback is disabled.') from None
     try:
