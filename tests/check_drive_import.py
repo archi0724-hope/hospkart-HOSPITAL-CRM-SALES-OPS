@@ -3,24 +3,18 @@ import json
 import os
 import sys
 import tempfile
-from io import BytesIO
 from pathlib import Path
 from threading import Thread
 from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from crm_test_environment import app, login_browser_admin
-from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 from waitress import create_server
 from spreadsheet_sync import SheetError
+from drive_workbook_fixture import fixture
 
 
-def fixture(*_):
-    book=Workbook();sheet=book.active;sheet.title='Hospitals'
-    sheet.append(['Name','City','Phone','Status']);sheet.append(['Shared Drive Hospital','Jaipur','0012345678','New Lead'])
-    content=BytesIO();book.save(content);content.seek(0)
-    return content,'Hospitals.xlsx','.xlsx'
 
 
 def check():

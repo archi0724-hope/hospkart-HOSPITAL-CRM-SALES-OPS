@@ -117,7 +117,7 @@ def check():
             result=client.post('/api/drive-import/save',json={'label':'Synthetic Drive workbook','link':'https://drive.google.com/file/d/synthetic_workbook_123456/view','target':'clients'},headers=headers)
             assert result.status_code==200,result.json
             assert len(client.get('/api/drive-import').json['links'])==1
-            from check_drive_import import fixture
+            from drive_workbook_fixture import fixture
             copied,name,_=fixture()
             item=result.json['links'][0]
             response=client.post('/api/drive-import/save-copy',data={'id':item['id'],'file':(copied,name)},headers=headers)
@@ -132,7 +132,7 @@ def check():
             if os.getenv('PG_BROWSER_CHECKS','true')=='true':
                 from waitress import create_server
                 from playwright.sync_api import sync_playwright
-                from check_drive_import import fixture
+                from drive_workbook_fixture import fixture
                 server=create_server(app.app,host='127.0.0.1',port=0);Thread(target=server.run,daemon=True).start()
                 try:
                     with sync_playwright() as playwright:
