@@ -56,6 +56,17 @@ class AdminAccessTests(unittest.TestCase):
         self.assertEqual(self.viewer.get('/api/workspace').json['workspace']['revision'], 0)
         self.assertEqual(self.viewer.get('/api/admin/activity').status_code, 403)
 
+    def test_dashboard_excludes_admin_panel_and_admin_page_keeps_authentication(self):
+        dashboard=self.viewer.get('/').get_data(as_text=True)
+        self.assertNotIn('id="adminAccessDialog"',dashboard)
+        self.assertNotIn('id="adminAccessButton"',dashboard)
+        self.assertNotIn('id="adminLoginPassword"',dashboard)
+        page=self.viewer.get('/admin')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('id="adminLoginPassword"',page.get_data(as_text=True))
+        self.assertIn('no-store',page.headers['Cache-Control'])
+        self.assertEqual(self.save(self.viewer).status_code,403)
+
     def test_viewer_can_read_and_export(self):
         self.assertEqual(self.viewer.get('/api/workspace').status_code, 200)
         self.assertEqual(self.viewer.get('/api/spreadsheet/status').status_code, 200)

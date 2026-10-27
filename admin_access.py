@@ -8,7 +8,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import g, has_request_context, jsonify, request
+from flask import g, has_request_context, jsonify, request, render_template
 from werkzeug.security import check_password_hash, generate_password_hash
 from request_security import crm_request_origin_allowed
 
@@ -137,6 +137,10 @@ def resolve_actor(conn, shared_hash):
 
 
 def register(app, db_conn, shared_hash):
+    @app.get('/admin')
+    def admin_page():
+        return render_template('admin_page.html'), 200, {'Cache-Control': 'no-store, private'}
+
     @app.before_request
     def guard():
         g.admin_actor = None

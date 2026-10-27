@@ -423,7 +423,7 @@ Review and retain any license/attribution requirements from upstream dependencie
 
 The dashboard opens in viewer mode. Viewers can browse and export saved data. Every data-changing API requires a signed-in administrator, including Excel uploads, record edits, calls/feedback/complaints, checkpoint restores, deletion/reset, Drive links/copies, spreadsheet setup/manual sync and messaging changes. Changing browser controls or sending a direct request does not grant write access.
 
-Click **Admin sign-in / Activity log** in the top bar. For the existing shared password, use username `admin`; configure the password locally with `.venv\Scripts\python.exe set_admin_password.py`, or configure `ADMIN_PASSWORD_HASH` privately on Render. For individual attribution, provision a personal account on the server:
+Open `/admin` on your CRM server for administrator sign-in and activity history. The main dashboard does not display the administrator panel or sign-in button. For the existing shared password, use username `admin`; configure the password locally with `.venv\Scripts\python.exe set_admin_password.py`, or configure `ADMIN_PASSWORD_HASH` privately on Render. For individual attribution, provision a personal account on the server:
 
 ```powershell
 .\.venv\Scripts\python.exe manage_admin.py alice

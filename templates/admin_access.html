@@ -1,4 +1,4 @@
-<dialog id="adminAccessDialog" class="excel-map-dialog" aria-labelledby="adminAccessTitle" style="max-width:1000px;width:95vw">
+<dialog open id="adminAccessDialog" class="excel-map-dialog" aria-labelledby="adminAccessTitle" style="max-width:1000px;width:95vw">
   <h2 id="adminAccessTitle">Administrator access &amp; activity</h2>
   <p id="adminSessionLabel">Viewers can browse and export data. Only a signed-in administrator can change it.</p>
   <form id="adminLoginForm" onsubmit="signInAdmin(event)">
@@ -16,5 +16,5 @@
     <button class="btn hidden" id="adminActivityMore" type="button" onclick="loadAdminActivity(true)">Load older activity</button>
   </div>
   <p id="adminAccessError" role="status" aria-live="polite"></p>
-  <button class="btn" type="button" onclick="document.getElementById('adminAccessDialog').close()">Close</button>
+  <button class="btn" type="button" onclick="closeAdminAccess()">Close</button>
 </dialog>

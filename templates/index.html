@@ -89,10 +89,9 @@ body.navigation-open{overflow:hidden}
 <main class="main">
 <header class="topbar">
   <div class="topbar-leading"><button id="navigationToggle" class="menu-toggle" type="button" aria-label="Open navigation" aria-controls="mainNavigation" aria-expanded="false" onclick="toggleNavigation()"><span></span><span></span><span></span></button><div class="title-wrap"><h1 id="pageTitle">Dashboard</h1><p id="pageSubtitle">Full hospital, client, and sales operations overview</p></div></div>
-  <div class="top-actions"><button class="btn" id="adminAccessButton" type="button" onclick="openAdminAccess()">Admin sign-in / Activity log</button><button class="btn" type="button" onclick="openSpreadsheetConnection()">Connect Spreadsheet</button><button class="btn" onclick="loadInvoiceWorkbook(true)">Load provided Excel</button><button class="btn navy" onclick="exportCurrentView()">Export Excel</button><button class="btn primary" onclick="openCallForm()">+ Add Calling Note</button></div>
+  <div class="top-actions"><button class="btn" type="button" onclick="openSpreadsheetConnection()">Connect Spreadsheet</button><button class="btn" onclick="loadInvoiceWorkbook(true)">Load provided Excel</button><button class="btn navy" onclick="exportCurrentView()">Export Excel</button><button class="btn primary" onclick="openCallForm()">+ Add Calling Note</button></div>
 </header>
 <section class="content">
-  <p id="adminAccessStatus" class="tiny" role="status">Viewer mode · Only administrators can upload, edit or delete data.</p>
   <p id="browserStorageNotice" class="danger-warning hidden" role="status"></p>
     <p id="sharedDatabaseStatus" class="tiny" role="status" style="margin:0 0 14px">Connecting to shared database…</p>
     <div id="sharedRecoveryNotice" class="danger-warning hidden" role="status"><p id="sharedRecoveryReason"></p><div class="toolbar-actions"><button type="button" class="btn" onclick="downloadBrowserWorkspaceRecovery()">Download preserved browser data</button><button type="button" class="btn" onclick="publishBrowserWorkspaceRecovery()">Restore preserved data for all users</button></div></div>
@@ -314,7 +313,6 @@ HOSPkart Team</textarea></div>
 
 {% include "spreadsheet_export.html" %}
 {% include "complaint_dialog.html" %}
-{% include 'admin_access.html' %}
 <script src="{{ asset_url('admin-access.js') }}"></script>
 <script src="{{ asset_url('browser-storage.js') }}"></script>
 <script src="{{ asset_url('quotesaarthi.js') }}"></script>

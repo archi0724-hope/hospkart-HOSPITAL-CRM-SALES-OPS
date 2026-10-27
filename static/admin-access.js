@@ -15,11 +15,12 @@ async function adminApi(path, data) {
 }
 function renderAdminAccess() {
   const label = crmAdminSession.admin ? 'Administrator: ' + crmAdminSession.username + ' · Upload, edit and delete enabled.' : 'Viewer mode · Only administrators can upload, edit or delete data.';
-  document.getElementById('adminAccessStatus').textContent = label;
-  document.getElementById('adminSessionLabel').textContent = label;
-  document.getElementById('adminLoginForm').classList.toggle('hidden', crmAdminSession.admin);
-  document.getElementById('adminSignedInTools').classList.toggle('hidden', !crmAdminSession.admin);
-  document.getElementById('adminAccessButton').textContent = crmAdminSession.admin ? crmAdminSession.username + ' · Activity log' : 'Admin sign-in / Activity log';
+  const status = document.getElementById('adminAccessStatus');
+  if (status) status.textContent = label;
+  const sessionLabel = document.getElementById('adminSessionLabel');
+  if (sessionLabel) sessionLabel.textContent = label;
+  document.getElementById('adminLoginForm')?.classList.toggle('hidden', crmAdminSession.admin);
+  document.getElementById('adminSignedInTools')?.classList.toggle('hidden', !crmAdminSession.admin);
   if (typeof updateSheetAdminControls === 'function') updateSheetAdminControls();
   if (!crmAdminSession.admin) document.getElementById('spreadsheetConnectionDialog')?.close();
   // This is a usability cue; authorization is always enforced by the server.
@@ -42,12 +43,15 @@ async function refreshAdminAccess() {
   renderAdminAccess();
 }
 async function openAdminAccess() {
-  document.getElementById('adminAccessDialog').showModal();
+  const panel = document.getElementById('adminAccessDialog');
+  if (!panel) {window.location.assign('/admin'); return;}
+  if (!panel.open) panel.show();
   await refreshAdminAccess();
   document.getElementById('adminAccessError').textContent = crmAdminSession.configured ? '' : 'No admin account is configured. Ask the server owner to run set_admin_password.py or manage_admin.py.';
   if (crmAdminSession.admin) await loadAdminActivity();
   else document.getElementById('adminLoginPassword').focus();
 }
+function closeAdminAccess() {window.location.assign('/');}
 async function signInAdmin(event) {
   event.preventDefault();
   if (adminLoginBusy) return;
@@ -66,7 +70,7 @@ async function signInAdmin(event) {
 async function signOutAdmin() {
   try {
     await adminApi('logout', {});
-    document.getElementById('adminActivityRows').replaceChildren();
+    document.getElementById('adminActivityRows')?.replaceChildren();
     await refreshAdminAccess();
   } catch (error) {document.getElementById('adminAccessError').textContent = error.message;}
 }
@@ -83,6 +87,7 @@ function describeAdminActivity(details) {
 }
 async function loadAdminActivity(older = false) {
   const rows = document.getElementById('adminActivityRows');
+  if (!rows) return;
   try {
     const result = await adminApi('activity' + (older && adminActivityCursor ? '?before=' + adminActivityCursor : ''));
     if (!older) rows.replaceChildren();
@@ -111,8 +116,10 @@ document.addEventListener('submit', event => {
   }
 }, true);
 document.addEventListener('DOMContentLoaded', () => {
-  new MutationObserver(records => {
+  const content = document.querySelector('.content');
+  if (content) new MutationObserver(records => {
     if (records.some(record => [...record.addedNodes].some(node => node.nodeType === 1 && (node.matches('button,input[type=file]') || node.querySelector('button,input[type=file]'))))) renderAdminAccess();
-  }).observe(document.querySelector('.content'), {childList: true, subtree: true});
+  }).observe(content, {childList: true, subtree: true});
+  if (document.getElementById('adminAccessDialog')) openAdminAccess();
   setInterval(refreshAdminAccess, 60000);
 });
