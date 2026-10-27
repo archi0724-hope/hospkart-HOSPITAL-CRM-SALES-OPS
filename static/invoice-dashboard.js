@@ -90,6 +90,7 @@ async function installInvoiceWorkbook(workbook, filename, backup = true) {
   await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},sections:{...sectionRecords,served},invoiceWorkbook:snapshot},backup?'Before invoice workbook import':'');
 }
 async function loadInvoiceWorkbook(force = false) {
+  if (!crmAdminSession.admin) {renderInvoiceDashboard(); return;}
   const version = dashboardDataVersion;
   try {
     const saved = (dashboardStorage.get('hk_v2_invoice_workbook')??null);

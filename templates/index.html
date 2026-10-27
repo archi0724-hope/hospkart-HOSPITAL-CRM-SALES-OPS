@@ -584,7 +584,7 @@ async function startDashboard(){
  const missing={},legacySections={rghs:clients.filter(record=>/rghs/i.test(JSON.stringify(record))).map((record,index)=>({...clone(record),id:'HK-R'+String(index+1).padStart(4,'0')})),leads:clients.filter(record=>!['Completed / Served','Lost / Cancelled','Delivered'].includes(record.status)).map((record,index)=>({...clone(record),id:'HK-L'+String(index+1).padStart(4,'0')})),served:segmentData.served,doctors:segmentData.doctors,potential:segmentData.potential};
  for(const name of Object.keys(legacySections)){const key='hk_v2_'+name;sectionRecords[name]=dashboardStorage.has(key)?load(key,[]):clone(legacySections[name]);if(!dashboardStorage.has(key))missing[key]=sectionRecords[name]}
  segmentData={served:sectionRecords.served,doctors:sectionRecords.doctors,potential:sectionRecords.potential};
- if(Object.keys(missing).length&&dashboardReady)await writeDashboardValues({...missing,hk_v2_segments:segmentData});
+ if(Object.keys(missing).length&&dashboardReady&&crmAdminSession.admin)await writeDashboardValues({...missing,hk_v2_segments:segmentData});
  if(dashboardReady)await routeGreenPotentialLeads();
  populateFilters();filtered=[...clients];renderAll();document.getElementById('formDate').value=TODAY;document.getElementById('feedbackDate').value=TODAY;
  await loadInvoiceWorkbook();await initializeSpreadsheetSync();await initializeDriveImportLinks();document.body.inert=false;startSharedWorkspaceRefresh();refreshIntegrationHealth();refreshWorkEmailStatus();

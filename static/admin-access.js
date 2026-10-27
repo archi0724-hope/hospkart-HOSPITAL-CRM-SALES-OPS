@@ -21,8 +21,8 @@ function renderAdminAccess() {
   document.getElementById('adminSignedInTools').classList.toggle('hidden', !crmAdminSession.admin);
   document.getElementById('adminAccessButton').textContent = crmAdminSession.admin ? crmAdminSession.username + ' · Activity log' : 'Admin sign-in / Activity log';
   // This is a usability cue; authorization is always enforced by the server.
-  document.querySelectorAll('button[onclick],input[type=file]').forEach(control => {
-    if (!adminWriteHandlers.test(control.getAttribute('onclick') || '') && control.type !== 'file') return;
+  document.querySelectorAll('button[onclick],input[type=file],.work-color-select,#sheetConnectPanel input,#sheetConnectPanel select').forEach(control => {
+    if (!adminWriteHandlers.test(control.getAttribute('onclick') || '') && control.type !== 'file' && !control.matches('.work-color-select,#sheetConnectPanel input,#sheetConnectPanel select')) return;
     if (!crmAdminSession.admin) {
       if (!control.disabled) control.dataset.adminDisabled = '1';
       control.disabled = true;
