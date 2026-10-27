@@ -868,6 +868,7 @@ def health():
             "ok": True,
             "database_engine": 'postgresql' if DATABASE_URL else 'sqlite',
             "database_connected": True,
+            "spreadsheet_scheduler_running": scheduler.running,
             "openai_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
             "ai_provider": "OpenAI",
             "whatsapp_configured": whatsapp_configured(),

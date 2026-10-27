@@ -29,6 +29,13 @@ function saveSpreadsheetSource() {
 }
 
 async function sheetRequest(path, data) {
+  const linked = sheetState?.connection;
+  if (data?.link && linked?.public_source && ['inspect','columns','preview'].includes(path)) {
+    try {
+      const sourceID = new URL(data.link).pathname.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1];
+      if (sourceID === linked.id) data = {...data, public_source:linked.public_source, mode:data.mode || 'form_responses'};
+    } catch (_) { /* Existing server validation reports malformed links. */ }
+  }
   const response = await fetch('/api/spreadsheet/' + path, {
     method: data === undefined ? 'GET' : 'POST',
     headers: data === undefined ? {} : {'Content-Type': 'application/json', 'X-CRM-Request': '1'},
@@ -260,7 +267,7 @@ function renderSheetConnection() {
   const link = sheetElement('sheetOpenLink');
   link.classList.toggle('hidden', !connection);
   if (connection) link.href = connection.link;
-  sheetElement('sheetCredentialHint').textContent = sheetState?.google_configured ? 'Google access is configured on the server. Share the source spreadsheet with that service account as Viewer; the access check will verify permission.' : 'Google access is not configured. Ask the administrator to configure server credentials using the setup instructions. Your sheet can stay private.';
+  sheetElement('sheetCredentialHint').textContent = connection?.public_source ? 'This form-response worksheet is read through its existing Google link access. CRM does not change Google sharing or write to the sheet. Keep the intended source access available for automatic sync.' : sheetState?.google_configured ? 'Google access is configured on the server. Share the source spreadsheet with that service account as Viewer; the access check will verify permission.' : 'Google access is not configured. Ask the administrator to configure server credentials using the setup instructions. Your sheet can stay private.';
   sheetElement('sheetSyncButton').disabled = sheetBusy || !connection;
 }
 

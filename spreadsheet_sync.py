@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 from flask import Blueprint, jsonify, request, send_file
 import shared_workspace
 import form_responses
+from public_form_sheet import PublicFormSheet
 from request_security import crm_request_origin_allowed
 
 MAX_ROWS = 20000
@@ -264,9 +265,17 @@ class SheetSync:
                     'report': json.loads(connection['last_result']) if connection['last_result'] else None}
             return result
 
+    def provider_for(self, body):
+        profile = body.get('public_source')
+        if profile is None:
+            return self.provider
+        if body.get('mode', 'form_responses') != 'form_responses':
+            raise SheetError('Existing-link access is supported only for one form-response worksheet.')
+        return PublicFormSheet(parse_link(body.get('link')), profile, SheetError, MAX_BYTES)
+
     def settings(self, body):
         file_id = parse_link(body.get('link'))
-        info = self.provider.inspect(file_id)
+        info = self.provider_for(body).inspect(file_id)
         mode = body.get('mode', 'tabs')
         if mode not in ('tabs', 'form_responses'):
             raise SheetError('Choose separate worksheets or a Google Form response worksheet.')
@@ -292,6 +301,8 @@ class SheetSync:
             raise SheetError('Map the source columns before previewing.')
         settings = {'link': info['url'], 'id': file_id, 'name': info['name'], 'tabs': selected,
                     'mappings': mappings or {}, 'auto_minutes': minutes}
+        if body.get('public_source') is not None:
+            settings['public_source'] = self.provider_for(body).profile
         if mode == 'form_responses':
             settings.update(mode=mode, response_tab=tab, response_mapping=body.get('response_mapping'),
                             form_link=form_responses.parse_form_link(body.get('form_link', ''), SheetError),
@@ -300,7 +311,7 @@ class SheetSync:
 
     def snapshot(self, settings, conn):
         if settings.get('mode') == 'form_responses':
-            values = self.provider.read(settings['id'], [settings['response_tab']])
+            values = self.provider_for(settings).read(settings['id'], [settings['response_tab']])
             rows, errors, warnings = form_responses.convert(values[0], settings, validate_rows, SheetError)
             return {'settings': settings, 'rows': rows, 'errors': errors, 'warnings': warnings}
         values = self.provider.read(settings['id'], [settings['tabs'][kind] for kind in FIELDS])
@@ -532,7 +543,8 @@ def register(app, db_conn, now_iso, authorize_admin):
 
     @routes.post('/inspect')
     def inspect():
-        return jsonify(ok=True, **service.provider.inspect(parse_link(body().get('link'))))
+        data = body()
+        return jsonify(ok=True, **service.provider_for(data).inspect(parse_link(data.get('link'))))
 
     @routes.post('/source')
     def save_source():
@@ -552,11 +564,12 @@ def register(app, db_conn, now_iso, authorize_admin):
     def columns():
         data = body()
         file_id = parse_link(data.get('link'))
-        info = service.provider.inspect(file_id)
+        provider = service.provider_for(data)
+        info = provider.inspect(file_id)
         titles = data.get('tabs')
         if not isinstance(titles, list) or len(titles) not in (1, 2) or any(title not in [tab['name'] for tab in info['tabs']] for title in titles):
             raise SheetError('Select valid Leads and Queries tabs.')
-        values = service.provider.read(file_id, titles, headers_only=True)
+        values = provider.read(file_id, titles, headers_only=True)
         return jsonify(ok=True, sheets=[{'headers': headers_for(rows), 'sample': rows[1:6]} for rows in values])
 
     @routes.post('/preview')
