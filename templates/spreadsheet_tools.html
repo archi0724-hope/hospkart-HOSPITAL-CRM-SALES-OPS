@@ -15,6 +15,7 @@
   <div class="card-body">
     <p class="mini-help">Connect separate Leads and Queries tabs, or a single Google Form response worksheet. Headers must be in row 1. This connection reads from the sheet only; source rows removed from the sheet stay in the CRM.</p>
     <p class="mini-help" id="sheetCredentialHint">An administrator must configure Google access on the server and share the sheet with that service account as Viewer. Keep the sheet private.</p>
+    <p class="mini-help">Only the administrator can save or change this connection. Team members can open the saved form and sync the configured sheet. Sign in using Admin sign-in to manage the connection.</p>
     <div class="field"><label for="sheetLinkInput">Google Drive / Google Sheets link</label><input id="sheetLinkInput" class="control" type="url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" oninput="invalidateSheetInspection()"></div>
     <div class="field"><label for="sheetSourceMode">Spreadsheet layout</label><select id="sheetSourceMode" class="control" onchange="changeSheetSourceMode()"><option value="tabs">Separate Leads and Queries worksheets</option><option value="form_responses">Google Form responses (one worksheet)</option></select></div>
     <div class="field"><label for="sheetFormLinkInput">Google Form respondent link (optional)</label><input id="sheetFormLinkInput" class="control" type="url" placeholder="https://docs.google.com/forms/d/e/…/viewform" oninput="invalidateSheetPreview()"></div>

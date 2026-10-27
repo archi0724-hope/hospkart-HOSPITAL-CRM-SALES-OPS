@@ -1,4 +1,4 @@
-"""Configure the local dashboard's admin removal password without exposing it."""
+"""Configure the shared administrator password without exposing it."""
 from getpass import getpass
 from pathlib import Path
 import os
@@ -22,7 +22,7 @@ def main():
         raise SystemExit('Passwords do not match. No changes were made.')
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(generate_password_hash(password), encoding='utf-8')
-    print('Admin password configured. Use Remove in Data & backups. No restart needed.')
+    print('Admin password configured. Sign in as admin using Admin sign-in / Activity log. No restart needed.')
 
 
 if __name__ == '__main__':

@@ -20,7 +20,7 @@ import database
 
 TABLES = ('message_log', 'scheduled_messages', 'email_followups', 'crm_workspace',
           'sheet_connection', 'sheet_source_preferences', 'sheet_leads', 'sheet_queries',
-          'sheet_previews', 'shared_drive_links', 'drive_workbook_copies')
+          'sheet_previews', 'shared_drive_links', 'drive_workbook_copies', 'crm_admin_users', 'crm_activity')
 
 
 def migrate(source_path, database_url, apply=False):
@@ -51,7 +51,7 @@ def migrate(source_path, database_url, apply=False):
                 while batch := rows.fetchmany(100): target.executemany(sql, batch)
                 if target.execute('SELECT count(*) FROM ' + table).fetchone()[0] != counts[table]:
                     raise ValueError('Migrated row counts do not match the backup. No partial data was committed.')
-            for table in ('message_log', 'scheduled_messages', 'email_followups'):
+            for table in ('message_log', 'scheduled_messages', 'email_followups', 'crm_activity'):
                 target.execute("SELECT setval(pg_get_serial_sequence('" + table + "','id'), GREATEST(COALESCE((SELECT MAX(id) FROM " + table + "),0),1), (SELECT COUNT(*)>0 FROM " + table + '))')
         return {'applied': True, 'source_counts': counts}
 

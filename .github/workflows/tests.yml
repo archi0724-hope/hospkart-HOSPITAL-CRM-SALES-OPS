@@ -55,6 +55,12 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m playwright install --with-deps chromium
+      - run: python tests/check_admin_access.py
+        env:
+          BROWSER_CHANNELS: chromium
+      - run: python tests/check_spreadsheet_sync.py
+        env:
+          BROWSER_CHANNELS: chromium
       - run: python tests/check_production_browsers.py
         env:
           BROWSER_CHANNELS: chromium,chromium

@@ -8,7 +8,9 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
+from flask.testing import FlaskClient
 from openpyxl import load_workbook
+from werkzeug.security import generate_password_hash
 
 from crm_test_environment import app
 from spreadsheet_sync import GoogleSheets, SheetError, parse_link
@@ -61,10 +63,14 @@ class SpreadsheetTests(unittest.TestCase):
         self.provider_patch = patch.object(app.sheet_sync, 'provider', self.provider)
         self.provider_patch.start()
         self.addCleanup(self.provider_patch.stop)
+        admin_patch = patch.object(app, 'admin_password_hash', return_value=generate_password_hash('sheet-test-admin'))
+        admin_patch.start()
+        self.addCleanup(admin_patch.stop)
+        app.admin_attempts.clear()
         self.client = app.app.test_client()
 
     def post(self, path, payload=None):
-        return self.client.post('/api/spreadsheet/' + path, json=payload or {}, headers=HEADERS)
+        return self.client.post('/api/spreadsheet/' + path, json={**(payload or {}), 'admin_password': 'sheet-test-admin'}, headers=HEADERS)
 
     def status(self):
         return self.client.get('/api/spreadsheet/status').json
@@ -75,6 +81,35 @@ class SpreadsheetTests(unittest.TestCase):
         result = self.post('import', {'token': preview.json['token']})
         self.assertEqual(result.status_code, 200, result.json)
         return result.json
+
+    def test_settings_require_admin_even_with_direct_api_calls(self):
+        original = self.status()
+        for path in ('source', 'inspect', 'columns', 'preview', 'import'):
+            response = FlaskClient(app.app).post('/api/spreadsheet/' + path, json={}, headers=HEADERS)
+            self.assertEqual(response.status_code, 403, (path, response.json))
+        self.assertEqual(self.status()['connection'], original['connection'])
+        self.assertEqual(self.status()['source'], original['source'])
+        self.assertEqual(self.post('source', {'link': LINK}).status_code, 200)
+
+    def test_reset_cannot_disable_connection_without_admin(self):
+        self.connect()
+        response = FlaskClient(app.app).post('/api/dashboard/reset', json={
+            'confirmed_reset': True, 'confirmation': 'RESET DASHBOARD'})
+        self.assertEqual(response.status_code, 403)
+        self.assertIsNotNone(self.status()['connection'])
+        self.assertEqual(len(self.status()['leads']), 1)
+
+    def test_unconfigured_admin_cannot_change_source(self):
+        with patch.object(app, 'admin_password_hash', return_value=''):
+            self.assertEqual(FlaskClient(app.app).post('/api/spreadsheet/source', json={'link': LINK}, headers=HEADERS).status_code, 403)
+
+    def test_wrong_password_cannot_replace_saved_source(self):
+        self.assertEqual(self.post('source', {'link': LINK}).status_code, 200)
+        original = self.status()['source']
+        response = FlaskClient(app.app).post('/api/spreadsheet/source', json={
+            'link': LINK.replace('private_sheet', 'different_sheet'), 'admin_password': 'wrong'}, headers=HEADERS)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.status()['source'], original)
 
     def test_links_only_allow_known_google_hosts_and_file_ids(self):
         self.assertEqual(parse_link(LINK), 'private_sheet_123456')
@@ -254,7 +289,7 @@ class SpreadsheetTests(unittest.TestCase):
         response = self.client.post('/api/spreadsheet/sync', json={}, headers={**HEADERS, 'Origin': 'https://evil.test'})
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self.client.post('/api/spreadsheet/sync', json={}).status_code, 403)
-        response = self.client.post('/api/dashboard/reset', json={'confirmed_reset': True, 'confirmation': 'RESET DASHBOARD'})
+        response = self.client.post('/api/dashboard/reset', json={'confirmed_reset': True, 'confirmation': 'RESET DASHBOARD', 'admin_password': 'sheet-test-admin'})
         self.assertEqual(response.status_code, 200)
         status = self.status()
         self.assertEqual(status['leads'], [])

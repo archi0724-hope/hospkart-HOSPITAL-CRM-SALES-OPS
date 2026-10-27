@@ -491,7 +491,7 @@ def export_workbook(payload):
     return output
 
 
-def register(app, db_conn, now_iso):
+def register(app, db_conn, now_iso, authorize_admin):
     service = SheetSync(db_conn, now_iso)
     routes = Blueprint('spreadsheet', __name__, url_prefix='/api/spreadsheet')
 
@@ -504,6 +504,8 @@ def register(app, db_conn, now_iso):
                 raise SheetError('Send a JSON request from the CRM dashboard.', 403)
             if request.content_length and request.content_length > MAX_BYTES:
                 raise SheetError('Request exceeds the 12 MB limit.', 413)
+            if request.endpoint.rsplit('.', 1)[-1] in {'inspect', 'save_source', 'columns', 'preview', 'commit'}:
+                authorize_admin(body())
 
     @routes.after_request
     def private_response(response):

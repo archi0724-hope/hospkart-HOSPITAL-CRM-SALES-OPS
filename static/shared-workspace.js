@@ -109,6 +109,7 @@ async function acceptWorkspaceState(state, external = false) {
 }
 
 async function initializeDashboardStorage() {
+  await refreshAdminAccess();
   await initializeBrowserCache();
   let local = {}, previousSharedCache = false;
   if (browserCacheReady) {
@@ -129,7 +130,7 @@ async function initializeDashboardStorage() {
   try {
     let result = await workspaceRequest();
     const hasLocal = hasBrowserBusinessData(local);
-    if (!result.workspace.initialized && hasLocal) {
+    if (!result.workspace.initialized && hasLocal && crmAdminSession.admin) {
       await preserveBrowserWorkspace(local, 'Your previous browser records were preserved before moving to the shared database.');
       try {
         result = await workspaceRequest({revision: result.workspace.revision, values: completeBrowserValues(local), initialize_only: true});
@@ -178,6 +179,7 @@ function commitDashboardRecords(values) {
   sharedWorkspaceSaving++;
   const operation = dashboardWriteQueue.then(async () => {
     try {
+      if (!crmAdminSession.admin) throw new Error('Admin sign-in required to change shared records.');
       if (!dashboardReady) throw new Error('The shared database is unavailable. These changes were not saved.');
       if (epoch !== sharedWorkspaceExternalEpoch) throw new Error('Shared records changed while this operation was waiting. Review the refreshed records and retry.');
       const result = await workspaceRequest({revision: sharedWorkspaceRevision, values: pending});

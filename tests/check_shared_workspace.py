@@ -8,7 +8,7 @@ from threading import Thread
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from crm_test_environment import app
+from crm_test_environment import app, login_browser_admin
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 from waitress import create_server
@@ -40,11 +40,13 @@ def check():
                     owner.add_init_script('if(!sessionStorage.getItem("seeded")){localStorage.setItem("hk_v2_clients",'+json.dumps(json.dumps([legacy]))+');sessionStorage.setItem("seeded","1");}')
                     a = owner.new_page(); errors = []
                     a.on('pageerror', lambda error: errors.append(str(error)))
+                    login_browser_admin(owner, address)
                     a.goto(address); ready(a)
                     assert a.evaluate('clients[0].id') == 'LEGACY-001'
                     assert a.evaluate('sharedWorkspaceInitialized')
                     other = browser.new_context(accept_downloads=True); b = other.new_page()
                     b.on('pageerror', lambda error: errors.append(str(error)))
+                    login_browser_admin(other, address)
                     b.goto(address); ready(b)
                     assert b.evaluate('clients[0].id') == 'LEGACY-001'
 
@@ -126,6 +128,7 @@ def check():
                     app.init_db(); server = create_server(app.app, host='127.0.0.1', port=0)
                     Thread(target=server.run, daemon=True).start()
                     fresh = browser.new_context(); c = fresh.new_page()
+                    login_browser_admin(fresh, f'http://127.0.0.1:{server.effective_port}/')
                     c.goto(f'http://127.0.0.1:{server.effective_port}/'); ready(c)
                     assert c.evaluate('clients.length') == len(before['hk_v2_clients'])
                     assert c.evaluate('invoiceWorkbook.sheets.length') == 6

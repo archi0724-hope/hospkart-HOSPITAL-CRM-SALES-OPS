@@ -21,7 +21,7 @@ from psycopg import sql
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 os.environ['SCHEDULER_ENABLED']='false'
 os.environ.pop('DATABASE_URL',None)
-from crm_test_environment import app
+from crm_test_environment import app, login_browser_admin
 import database
 from migrate_database import migrate
 from test_spreadsheet_sync import FakeSheets, connection_payload
@@ -140,6 +140,7 @@ def check():
                             browser=playwright.chromium.launch(**({} if channel=='chromium' else {'channel':channel}),headless=True)
                             page=browser.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
                             page.on('dialog',lambda dialog:dialog.accept())
+                            login_browser_admin(page.context, f'http://127.0.0.1:{server.effective_port}/')
                             page.goto(f'http://127.0.0.1:{server.effective_port}/');page.wait_for_function('dashboardReady&&!document.body.inert')
                             page.evaluate("navigate('clients')")
                             page.get_by_role('button',name='Import Excel',exact=True).click()

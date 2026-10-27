@@ -417,3 +417,25 @@ SmartBot concept adapted from:
 `https://github.com/archi0724/smartbot`
 
 Review and retain any license/attribution requirements from upstream dependencies when deploying.
+
+
+### Admin access and activity history
+
+The dashboard opens in viewer mode. Viewers can browse and export saved data. Every data-changing API requires a signed-in administrator, including Excel uploads, record edits, calls/feedback/complaints, checkpoint restores, deletion/reset, Drive links/copies, spreadsheet setup/manual sync and messaging changes. Changing browser controls or sending a direct request does not grant write access.
+
+Click **Admin sign-in / Activity log** in the top bar. For the existing shared password, use username `admin`; configure the password locally with `.venv\Scripts\python.exe set_admin_password.py`, or configure `ADMIN_PASSWORD_HASH` privately on Render. For individual attribution, provision a personal account on the server:
+
+```powershell
+.\.venv\Scripts\python.exe manage_admin.py alice
+.\.venv\Scripts\python.exe manage_admin.py alice --disable
+```
+
+The command prompts privately for a password of at least 12 characters. There is no public account-creation endpoint. A shared `admin` login identifies the shared account only; separate accounts are required to distinguish individual people. Accounts are administrators; everyone else remains a viewer. The login cookie is HttpOnly, SameSite=Strict, Secure over HTTPS and expires after one hour. Sign-out, password changes and account disabling revoke access. Five failed sign-ins per peer in a minute trigger throttling. No password or session token is stored in browser storage or activity details.
+
+The activity dialog lists the authenticated account, time in IST, affected API/area, affected tables, record IDs (up to 50), changed field names and added/edited/removed counts. Values of customer fields and workbook content are not copied into the history. Upload previews are labeled separately from saved changes. Database changes and their audit event commit in the same transaction; an audit write failure rolls the data change back. No-op or failed saves do not claim a successful edit. Denied writes and login activity are recorded too. History is paginated, remains after reset and is included with named users in database migration/backups; existing sessions are not migrated. History starts at installation and cannot reconstruct earlier changes. The dashboard has no activity-history edit/delete endpoint.
+
+Automatic synchronization previously enabled by an admin continues on the server and is logged as `System: auto_sync`. Scheduled messaging is similarly attributed to the system. Inbound WhatsApp writes require `WHATSAPP_APP_SECRET` and a valid Meta `X-Hub-Signature-256` signature. Configure that secret privately before using the webhook.
+
+Saving a source link does not connect to Google or import responses. Google Application Default Credentials, enabled Sheets/Drive APIs and Viewer sharing are still required, followed by administrator mapping, preview and import. Local changes must be deployed to Render separately to protect the hosted service. Use persistent PostgreSQL or persistent disk storage on Render to retain users, sessions and activity history.
+
+Verification: `python -m unittest discover -s tests`, `python tests/check_admin_access.py`, and `python tests/check_spreadsheet_sync.py`. The checks use isolated temporary databases and synthetic accounts/data; no customer messages or live Google calls are needed. Older browser scripts that perform writes must sign in to an isolated synthetic admin account first.

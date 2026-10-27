@@ -9,7 +9,7 @@ from threading import Thread
 from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from crm_test_environment import app
+from crm_test_environment import app, login_browser_admin
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 from waitress import create_server
@@ -39,6 +39,7 @@ def check():
                     a=browser.new_page();b=browser.new_page();errors=[]
                     for page in (a,b):
                         page.on('pageerror',lambda error:errors.append(str(error)))
+                        login_browser_admin(page.context, f'http://127.0.0.1:{server.effective_port}/')
                         page.goto(f'http://127.0.0.1:{server.effective_port}/');page.wait_for_function('dashboardReady&&!document.body.inert');page.evaluate('openDriveImport()')
                         page.evaluate('document.activeElement.blur()')
                     a.locator('#driveImportLabel').fill('Team workbook <script>')

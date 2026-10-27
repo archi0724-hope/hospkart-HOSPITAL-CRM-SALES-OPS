@@ -1,0 +1,20 @@
+<dialog id="adminAccessDialog" class="excel-map-dialog" aria-labelledby="adminAccessTitle" style="max-width:1000px;width:95vw">
+  <h2 id="adminAccessTitle">Administrator access &amp; activity</h2>
+  <p id="adminSessionLabel">Viewers can browse and export data. Only a signed-in administrator can change it.</p>
+  <form id="adminLoginForm" onsubmit="signInAdmin(event)">
+    <div class="form-grid">
+      <div class="field"><label for="adminUsername">Admin username</label><input id="adminUsername" class="control" autocomplete="username" value="admin" required maxlength="100"></div>
+      <div class="field"><label for="adminLoginPassword">Password</label><input id="adminLoginPassword" class="control" type="password" autocomplete="current-password" required maxlength="1024"></div>
+    </div>
+    <p class="mini-help">Use your assigned admin account. The existing shared admin password uses username “admin”. A shared login identifies the account; use separate named accounts to identify individual administrators.</p>
+    <button class="btn primary" id="adminSignInButton" type="submit">Sign in</button>
+  </form>
+  <div id="adminSignedInTools" class="hidden">
+    <div class="toolbar-actions"><button class="btn" type="button" onclick="loadAdminActivity()">Refresh activity</button><button class="btn" type="button" onclick="signOutAdmin()">Sign out</button></div>
+    <p class="mini-help">History starts when this feature is installed. Successful changes and their activity records commit together. Dashboard resets keep this history. Times below are in IST.</p>
+    <div class="table-wrap" style="max-height:50vh;overflow:auto"><table class="data-table"><thead><tr><th>Time (IST)</th><th>Who</th><th>Action</th><th>Area</th><th>Changes</th><th>Result</th></tr></thead><tbody id="adminActivityRows"></tbody></table></div>
+    <button class="btn hidden" id="adminActivityMore" type="button" onclick="loadAdminActivity(true)">Load older activity</button>
+  </div>
+  <p id="adminAccessError" role="status" aria-live="polite"></p>
+  <button class="btn" type="button" onclick="document.getElementById('adminAccessDialog').close()">Close</button>
+</dialog>

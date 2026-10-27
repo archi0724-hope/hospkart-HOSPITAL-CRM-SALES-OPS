@@ -13,13 +13,14 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from crm_test_environment import app
 from openpyxl import load_workbook
+from werkzeug.security import generate_password_hash
 from playwright.sync_api import sync_playwright
 from waitress import create_server
 from test_spreadsheet_sync import FakeSheets, SheetError
 
 
 def check():
-    with tempfile.TemporaryDirectory() as temp, patch.object(app, 'DB_PATH', Path(temp) / 'test.db'), patch.object(app, 'DATA_DIR', Path(temp)):
+    with tempfile.TemporaryDirectory() as temp, patch.object(app, 'DB_PATH', Path(temp) / 'test.db'), patch.object(app, 'DATA_DIR', Path(temp)), patch.object(app, 'admin_password_hash', return_value=generate_password_hash('browser-sheet-admin')):
         app.init_db()
         if app.scheduler.running:
             app.scheduler.pause()
@@ -40,6 +41,8 @@ def check():
                         context = browser.new_context(accept_downloads=True, viewport={'width': 1440, 'height': 1000})
                         page = context.new_page(); errors = []
                         page.on('pageerror', lambda error: errors.append(str(error)))
+                        login = context.request.post(f'http://127.0.0.1:{server.effective_port}/api/admin/login', data={'username': 'admin', 'password': 'browser-sheet-admin'})
+                        assert login.ok, login.text()
                         page.goto(f'http://127.0.0.1:{server.effective_port}/')
                         page.wait_for_function('dashboardReady && !document.body.inert && sheetState !== null')
                         base = page.evaluate('({leads:sectionRecords.leads.length,clients:JSON.stringify(clients),total:workspaceRecords().length})')

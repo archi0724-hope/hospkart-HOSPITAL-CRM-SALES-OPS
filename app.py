@@ -1,4 +1,7 @@
 import json
+import hashlib
+import hmac
+import admin_access
 import os
 import re
 import sqlite3
@@ -19,7 +22,7 @@ from time import monotonic
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, url_for, send_file
+from flask import Flask, jsonify, render_template, request, url_for, send_file, g, has_request_context
 from werkzeug.security import check_password_hash
 import spreadsheet_sync
 import drive_import
@@ -139,12 +142,30 @@ def admin_status():
     return jsonify({"ok": True, "configured": bool(admin_password_hash())})
 
 
+def require_spreadsheet_admin(data):
+    if has_request_context() and getattr(g, 'admin_actor', None):
+        return
+    password_hash = admin_password_hash()
+    if not password_hash:
+        raise spreadsheet_sync.SheetError('An administrator must configure the admin password before changing spreadsheet settings.', 503)
+    password = data.get('admin_password')
+    with admin_lock:
+        now = monotonic()
+        while admin_attempts and admin_attempts[0] <= now - 60:
+            admin_attempts.popleft()
+        if len(admin_attempts) >= 5:
+            raise spreadsheet_sync.SheetError('Too many incorrect admin passwords. Try again in one minute.', 429)
+        if not isinstance(password, str) or len(password) > 1024 or not check_password_hash(password_hash, password):
+            admin_attempts.append(now)
+            raise spreadsheet_sync.SheetError('Admin password required. Spreadsheet settings were not changed.', 403)
+
+
 @app.post("/api/admin/remove-import")
 def authorize_import_removal():
     # Imported records live in this browser. Authorize a precise removal scope;
     # never accept a browser-provided 'is_admin' flag or expose the password hash.
     password_hash = admin_password_hash()
-    if not password_hash:
+    if not password_hash and not getattr(g, "admin_actor", None):
         return jsonify({"ok": False, "error": "An administrator must configure the admin password before removing imports."}), 503
     if not crm_request_origin_allowed(request):
         return jsonify({"ok": False, "error": "Use the dashboard on this server to remove imports."}), 403
@@ -158,7 +179,7 @@ def authorize_import_removal():
             admin_attempts.popleft()
         if len(admin_attempts) >= 5:
             return jsonify({"ok": False, "error": "Too many incorrect admin passwords. Try again in one minute."}), 429
-        if not isinstance(password, str) or len(password) > 1024 or not check_password_hash(password_hash, password):
+        if not getattr(g, "admin_actor", None) and (not isinstance(password, str) or len(password) > 1024 or not check_password_hash(password_hash, password)):
             admin_attempts.append(now)
             return jsonify({"ok": False, "error": "Incorrect admin password. No data was removed."}), 403
     scope, name = body.get("scope"), body.get("name")
@@ -186,7 +207,13 @@ def env_bool(name: str, default: bool = False) -> bool:
 @contextmanager
 def db_conn():
     with database.connect(DB_PATH, DATABASE_URL) as conn:
-        yield conn
+        actor = getattr(g, 'admin_actor', None) if has_request_context() else admin_access.SYSTEM_ACTOR.get()
+        if actor:
+            audited = admin_access.AuditedConnection(conn, actor, request.path if has_request_context() else actor)
+            yield audited
+            audited.flush()
+        else:
+            yield conn
 
 
 def init_db():
@@ -236,6 +263,7 @@ def init_db():
             );
             """
         )
+        admin_access.init_schema(conn)
         spreadsheet_sync.init_schema(conn)
         drive_import.init_schema(conn)
         shared_workspace.init_schema(conn)
@@ -314,6 +342,7 @@ def email_error(exc):
 
 
 @with_messaging_lock
+@admin_access.system_task
 def process_due_emails():
     if not email_configured():
         return
@@ -435,6 +464,11 @@ def api_reset_dashboard():
     try:
         with sheet_sync.lock, db_conn() as conn:
             conn.execute('BEGIN IMMEDIATE')
+            if conn.execute('SELECT 1 FROM sheet_connection WHERE id=1').fetchone():
+                try:
+                    require_spreadsheet_admin(body)
+                except spreadsheet_sync.SheetError as error:
+                    return jsonify(ok=False, error=str(error)), error.status
             shared_state = shared_workspace.reset(conn, body.get('workspace_revision'))
             cleared = {}
             for table in ("email_followups", "scheduled_messages", "message_log"):
@@ -694,6 +728,7 @@ def extract_inbound_messages(payload: dict):
 
 
 @with_messaging_lock
+@admin_access.system_task
 def process_due_messages():
     if not env_bool("WHATSAPP_AUTOMATION_ENABLED", False) or not whatsapp_configured():
         return
@@ -1046,6 +1081,12 @@ def verify_webhook():
 @app.post("/webhook")
 @with_messaging_lock
 def receive_webhook():
+    secret = os.getenv('WHATSAPP_APP_SECRET', '').strip()
+    signature = request.headers.get('X-Hub-Signature-256', '')
+    expected = 'sha256=' + hmac.new(secret.encode(), request.get_data(), hashlib.sha256).hexdigest()
+    if not secret or not hmac.compare_digest(signature, expected):
+        return jsonify(ok=False, error='Valid WhatsApp webhook signature required.'), 403
+    g.admin_actor = 'System: verified WhatsApp webhook'
     payload = request.get_json(silent=True) or {}
     inbound = extract_inbound_messages(payload)
     for item in inbound:
@@ -1074,14 +1115,16 @@ def receive_webhook():
     return jsonify({"ok": True, "processed": len(inbound)})
 
 
-sheet_sync = spreadsheet_sync.register(app, db_conn, now_iso)
+admin_access.register(app, db_conn, lambda: admin_password_hash())
+
+sheet_sync = spreadsheet_sync.register(app, db_conn, now_iso, require_spreadsheet_admin)
 drive_import_provider = drive_import.register(app, db_conn, now_iso, lambda: {'engine': 'postgresql' if DATABASE_URL else 'sqlite', 'durable': bool(DATABASE_URL)})
 shared_workspace.register(app, db_conn)
 init_db()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 scheduler.add_job(process_due_messages, "interval", seconds=60, id="whatsapp_followups", replace_existing=True)
 scheduler.add_job(process_due_emails, "interval", seconds=15, id="email_followups", replace_existing=True)
-scheduler.add_job(sheet_sync.auto_sync, "interval", seconds=60, id="spreadsheet_sync", replace_existing=True, max_instances=1, coalesce=True)
+scheduler.add_job(admin_access.system_task(sheet_sync.auto_sync), "interval", seconds=60, id="spreadsheet_sync", replace_existing=True, max_instances=1, coalesce=True)
 if env_bool("SCHEDULER_ENABLED", True):
     scheduler.start()
 
