@@ -18,7 +18,7 @@ PASSWORD = 'browser-personal-admin-123'
 
 def check():
     reports = []
-    with tempfile.TemporaryDirectory() as temp, patch.object(app, 'DB_PATH', Path(temp) / 'crm.db'), patch.object(app, 'admin_password_hash', return_value=''):
+    with tempfile.TemporaryDirectory() as temp, patch.object(app, 'DB_PATH', Path(temp) / 'crm.db'), patch.object(app, 'admin_password_hash', return_value=''), patch.dict(app.app.config, {'ADMIN_ACCESS_REQUIRED': True}):
         app.init_db()
         with app.db_conn() as conn:
             conn.execute('INSERT INTO crm_admin_users VALUES (?,?,1)', ('alice', generate_password_hash(PASSWORD)))

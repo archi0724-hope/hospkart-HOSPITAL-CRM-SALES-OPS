@@ -13,8 +13,7 @@ async function performDashboardReset() {
   if (quoteSaarthiSubmitting) { toast('Wait for the QuoteSaarthi request to finish before resetting.'); return; }
   if (typeof sheetBusy !== 'undefined' && sheetBusy) { toast('Wait for the spreadsheet operation to finish before resetting.'); return; }
   if (typeof driveImportBusy !== 'undefined' && driveImportBusy) { toast('Wait for the Drive import to finish before resetting.'); return; }
-  const resetAdminPassword = '';
-  if (!crmAdminSession.admin) {toast('Admin sign-in required to reset data.'); return;}
+  if (!crmAdminSession.can_edit) {toast('Data changes are unavailable until the server reconnects.'); return;}
   dashboardResetting = true;
   dashboardDataVersion++;
   const button = document.getElementById('resetConfirmButton');
@@ -24,7 +23,7 @@ async function performDashboardReset() {
   try {
     const response = await fetch('/api/dashboard/reset', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({confirmed_reset: true, confirmation: 'RESET DASHBOARD', workspace_revision: sharedWorkspaceRevision, admin_password: resetAdminPassword})
+      body: JSON.stringify({confirmed_reset: true, confirmation: 'RESET DASHBOARD', workspace_revision: sharedWorkspaceRevision})
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || 'Could not clear server history.');

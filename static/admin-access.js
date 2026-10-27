@@ -1,4 +1,4 @@
-let crmAdminSession = {admin: false, username: null, configured: false};
+let crmAdminSession = {admin: false, can_edit: false, login_required: false, username: null, configured: false};
 let adminActivityCursor = null;
 let adminLoginBusy = false;
 const adminWriteHandlers = /\b(openExcelImport|openDriveImport|loadInvoiceWorkbook|openClientForm|openCallForm|openFeedback|openWorkStatus|openLeadRecordForm|openComplaint|addLeadFromStageEditor|publishBrowserWorkspaceRecovery|resetDashboard|prepareFullBackup|saveSpreadsheetSource|inspectSpreadsheet|loadSpreadsheetColumns|previewSpreadsheet|importSpreadsheetPreview|syncLinkedSpreadsheet|removeSelectedImport|openImportRemoval|submitEmailFollowups|sendWhatsAppApi|scheduleWhatsAppFollowup|saveDrive|removeDrive|attachDrive|importDrive|delete|remove|saveWork|saveClient|saveCall|saveFeedback|saveComplaint)\w*\s*\(/i;
@@ -14,7 +14,7 @@ async function adminApi(path, data) {
   return result;
 }
 function renderAdminAccess() {
-  const label = crmAdminSession.admin ? 'Administrator: ' + crmAdminSession.username + ' · Upload, edit and delete enabled.' : 'Viewer mode · Only administrators can upload, edit or delete data.';
+  const label = !crmAdminSession.login_required ? 'Dashboard access · No sign-in required.' : crmAdminSession.admin ? 'Administrator: ' + crmAdminSession.username + ' · Upload, edit and delete enabled.' : 'Viewer mode · Only administrators can upload, edit or delete data.';
   const status = document.getElementById('adminAccessStatus');
   if (status) status.textContent = label;
   const sessionLabel = document.getElementById('adminSessionLabel');
@@ -22,14 +22,14 @@ function renderAdminAccess() {
   document.getElementById('adminLoginForm')?.classList.toggle('hidden', crmAdminSession.admin);
   document.getElementById('adminSignedInTools')?.classList.toggle('hidden', !crmAdminSession.admin);
   if (typeof updateSheetAdminControls === 'function') updateSheetAdminControls();
-  if (!crmAdminSession.admin) document.getElementById('spreadsheetConnectionDialog')?.close();
+  if (!crmAdminSession.can_edit) document.getElementById('spreadsheetConnectionDialog')?.close();
   // This is a usability cue; authorization is always enforced by the server.
   document.querySelectorAll('button[onclick],input[type=file],.work-color-select,#sheetConnectPanel input,#sheetConnectPanel select').forEach(control => {
     if (!adminWriteHandlers.test(control.getAttribute('onclick') || '') && control.type !== 'file' && !control.matches('.work-color-select,#sheetConnectPanel input,#sheetConnectPanel select')) return;
-    if (!crmAdminSession.admin) {
+    if (!crmAdminSession.can_edit) {
       if (!control.disabled) control.dataset.adminDisabled = '1';
       control.disabled = true;
-      control.title = 'Admin sign-in required to change data';
+      control.title = crmAdminSession.login_required ? 'Admin sign-in required to change data' : 'Waiting for the dashboard connection';
     } else if (control.dataset.adminDisabled) {
       control.disabled = false;
       delete control.dataset.adminDisabled;
@@ -39,11 +39,13 @@ function renderAdminAccess() {
 }
 async function refreshAdminAccess() {
   try {crmAdminSession = await adminApi('session');}
-  catch (_) {crmAdminSession = {admin: false};}
+  catch (_) {crmAdminSession = {admin: false,can_edit:false,login_required:false};}
   renderAdminAccess();
 }
 async function openAdminAccess() {
+  await refreshAdminAccess();
   const panel = document.getElementById('adminAccessDialog');
+  if (!crmAdminSession.login_required) {window.location.assign('/activity'); return;}
   if (!panel) {window.location.assign('/admin'); return;}
   if (!panel.open) panel.show();
   await refreshAdminAccess();
@@ -104,14 +106,14 @@ async function loadAdminActivity(older = false) {
   } catch (error) {document.getElementById('adminAccessError').textContent = error.message;}
 }
 document.addEventListener('click', event => {
-  if (crmAdminSession.admin || event.target.closest('#adminAccessDialog')) return;
+  if (crmAdminSession.can_edit || event.target.closest('#adminAccessDialog')) return;
   const control = event.target.closest('button,a,input[type=file]');
   if (control && (adminWriteHandlers.test(control.getAttribute('onclick') || '') || control.type === 'file')) {
     event.preventDefault(); event.stopImmediatePropagation(); openAdminAccess();
   }
 }, true);
 document.addEventListener('submit', event => {
-  if (!crmAdminSession.admin && !event.target.closest('#adminAccessDialog') && /save|import|reset|submitEmail/i.test(event.target.getAttribute('onsubmit') || '')) {
+  if (!crmAdminSession.can_edit && !event.target.closest('#adminAccessDialog') && /save|import|reset|submitEmail/i.test(event.target.getAttribute('onsubmit') || '')) {
     event.preventDefault(); event.stopImmediatePropagation(); openAdminAccess();
   }
 }, true);
@@ -121,5 +123,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (records.some(record => [...record.addedNodes].some(node => node.nodeType === 1 && (node.matches('button,input[type=file]') || node.querySelector('button,input[type=file]'))))) renderAdminAccess();
   }).observe(content, {childList: true, subtree: true});
   if (document.getElementById('adminAccessDialog')) openAdminAccess();
+  else if (document.getElementById('adminActivityRows')) loadAdminActivity();
   setInterval(refreshAdminAccess, 60000);
 });

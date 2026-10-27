@@ -27,17 +27,17 @@ function openImportRemoval(target) {
   document.getElementById('importRemovalPhrase').textContent='REMOVE '+target.name;
   document.getElementById('importRemovalError').textContent='';
   document.getElementById('importRemovalDialog').showModal();
-  document.getElementById('importRemovalPassword').focus();
+  document.getElementById('importRemovalConfirmation').focus();
 }
-function closeImportRemoval(){if(importRemovalSubmitting)return;document.getElementById('importRemovalPassword').value='';pendingImportRemoval=null;document.getElementById('importRemovalDialog').close();}
+function closeImportRemoval(){if(importRemovalSubmitting)return;pendingImportRemoval=null;document.getElementById('importRemovalDialog').close();}
 async function removeSelectedImport(event) {
   event.preventDefault(); const target=pendingImportRemoval;
   if(!target||dashboardResetting||importRemovalSubmitting)return;
   const error=document.getElementById('importRemovalError'), button=document.getElementById('importRemovalSubmit');
   importRemovalSubmitting=true;button.disabled=true;error.textContent='';
   try {
-    const response=await fetch('/api/admin/remove-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:target.scope,name:target.name,password:document.getElementById('importRemovalPassword').value,confirmation:document.getElementById('importRemovalConfirmation').value})});
-    document.getElementById('importRemovalPassword').value='';
+    const response=await fetch('/api/admin/remove-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:target.scope,name:target.name,confirmation:document.getElementById('importRemovalConfirmation').value})});
+
     const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Removal was not authorized.');
     if(result.authorized_scope!==target.scope||result.authorized_name!==target.name)throw new Error('Removal scope did not match.');
     if(dashboardResetting||target.version!==dashboardDataVersion||target.workbook!==invoiceWorkbook)throw new Error('Dashboard data changed. Select the import again.');

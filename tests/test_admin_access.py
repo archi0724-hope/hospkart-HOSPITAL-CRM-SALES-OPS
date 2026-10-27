@@ -19,6 +19,8 @@ PASSWORD = 'personal-admin-password-123'
 
 class AdminAccessTests(unittest.TestCase):
     def setUp(self):
+        policy = patch.dict(app.app.config, {'ADMIN_ACCESS_REQUIRED': True})
+        policy.start(); self.addCleanup(policy.stop)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         db = patch.object(app, 'DB_PATH', Path(temporary.name) / 'crm.db')

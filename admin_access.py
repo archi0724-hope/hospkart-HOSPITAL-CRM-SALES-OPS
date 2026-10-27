@@ -1,6 +1,7 @@
 """Named administrator sessions and transaction-bound activity history."""
 import hashlib
 import json
+import os
 import re
 import secrets
 import time
@@ -8,7 +9,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import g, has_request_context, jsonify, request, render_template
+from flask import g, has_request_context, jsonify, request, render_template, redirect
 from werkzeug.security import check_password_hash, generate_password_hash
 from request_security import crm_request_origin_allowed
 
@@ -136,18 +137,29 @@ def resolve_actor(conn, shared_hash):
     return session['username']
 
 
+def requires_admin(app):
+    return app.config.get('ADMIN_ACCESS_REQUIRED', os.getenv('ADMIN_ACCESS_REQUIRED', 'false').lower() == 'true')
+
+
 def register(app, db_conn, shared_hash):
     @app.get('/admin')
     def admin_page():
+        if not requires_admin(app):
+            return redirect('/')
         return render_template('admin_page.html'), 200, {'Cache-Control': 'no-store, private'}
+
+    @app.get('/activity')
+    def activity_page():
+        return render_template('activity_page.html'), 200, {'Cache-Control': 'no-store, private'}
 
     @app.before_request
     def guard():
-        g.admin_actor = None
+        g.admin_actor = None if requires_admin(app) else 'Dashboard user'
         if request.path.startswith('/static/') or request.path == '/':
             return
-        with db_conn() as conn:
-            g.admin_actor = resolve_actor(conn, shared_hash)
+        if requires_admin(app):
+            with db_conn() as conn:
+                g.admin_actor = resolve_actor(conn, shared_hash)
         if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.path.startswith('/api/'):
             if not crm_request_origin_allowed(request):
                 return jsonify(ok=False, error='Use the CRM dashboard on this server.'), 403
@@ -173,12 +185,16 @@ def register(app, db_conn, shared_hash):
 
     @app.get('/api/admin/session')
     def session_status():
+        if not requires_admin(app):
+            return jsonify(ok=True, admin=False, can_edit=True, login_required=False, username=None, configured=False)
         with db_conn() as conn:
             configured = bool(shared_hash() or conn.execute('SELECT 1 FROM crm_admin_users WHERE enabled=1').fetchone())
-        return jsonify(ok=True, admin=bool(g.admin_actor), username=g.admin_actor, configured=configured)
+        return jsonify(ok=True, admin=bool(g.admin_actor), can_edit=bool(g.admin_actor), login_required=True, username=g.admin_actor, configured=configured)
 
     @app.post('/api/admin/login')
     def login():
+        if not requires_admin(app):
+            return jsonify(ok=True, can_edit=True, login_required=False)
         if not request.is_json:
             return jsonify(ok=False, error='Send a JSON login request.'), 400
         data = request.get_json(silent=True)
@@ -212,6 +228,8 @@ def register(app, db_conn, shared_hash):
 
     @app.post('/api/admin/logout')
     def logout():
+        if not requires_admin(app):
+            return jsonify(ok=True)
         if not request.is_json:
             return jsonify(ok=False, error='Send a JSON sign-out request.'), 400
         with db_conn() as conn:

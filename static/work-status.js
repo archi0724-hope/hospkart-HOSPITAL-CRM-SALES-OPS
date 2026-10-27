@@ -84,7 +84,7 @@ function copyToPotentialLead(record, scope, sourceKeys) {
 }
 
 async function routeGreenPotentialLeads(scope) {
-  if (!crmAdminSession.admin) return;
+  if (!crmAdminSession.can_edit) return;
   const sources = scope ? [[scope, findWorkRecordForScope(scope)]] : [
     ['clients', clients], ['leads', sectionRecords.leads], ['rghs', sectionRecords.rghs]
   ];
@@ -214,7 +214,7 @@ async function syncEmailWorkStatus(items) {
 }
 
 async function refreshWorkEmailStatus() {
-  if (!crmAdminSession.admin) return;
+  if (!crmAdminSession.can_edit) return;
   const version = dashboardDataVersion;
   if (dashboardResetting) return;
   try {

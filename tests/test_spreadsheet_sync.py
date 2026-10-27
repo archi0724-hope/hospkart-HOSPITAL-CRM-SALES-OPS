@@ -53,6 +53,8 @@ def connection_payload():
 
 class SpreadsheetTests(unittest.TestCase):
     def setUp(self):
+        policy = patch.dict(app.app.config, {'ADMIN_ACCESS_REQUIRED': True})
+        policy.start(); self.addCleanup(policy.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.db_patch = patch.object(app, 'DB_PATH', Path(self.temp.name) / 'crm.db')

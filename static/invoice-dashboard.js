@@ -90,7 +90,16 @@ async function installInvoiceWorkbook(workbook, filename, backup = true) {
   await applyDashboardCheckpoint({clients:merged.rows,calls,feedback,segments:{...segmentData,served},sections:{...sectionRecords,served},invoiceWorkbook:snapshot},backup?'Before invoice workbook import':'');
 }
 async function loadInvoiceWorkbook(force = false) {
-  if (!crmAdminSession.admin) {renderInvoiceDashboard(); return;}
+  if (!force && !crmAdminSession.admin) {
+    try {
+      const saved=dashboardStorage.get('hk_v2_invoice_workbook')??null;
+      const snapshot=saved===null?null:JSON.parse(saved);
+      if(snapshot!==null&&!validInvoiceSnapshot(snapshot))throw new Error('Saved invoice data is unreadable.');
+      invoiceWorkbook=snapshot;
+    } catch(error) {invoiceWorkbook=null;browserStorageNotice('Invoice workbook could not load: '+error.message);}
+    renderInvoiceDashboard(); return;
+  }
+  if (!crmAdminSession.can_edit) {renderInvoiceDashboard(); return;}
   const version = dashboardDataVersion;
   try {
     const saved = (dashboardStorage.get('hk_v2_invoice_workbook')??null);

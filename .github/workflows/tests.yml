@@ -58,6 +58,9 @@ jobs:
       - run: python tests/check_admin_access.py
         env:
           BROWSER_CHANNELS: chromium
+      - run: python tests/check_dashboard_access.py
+        env:
+          BROWSER_CHANNELS: chromium
       - run: python tests/check_connected_sheet_dashboard.py
         env:
           BROWSER_CHANNELS: chromium

@@ -50,7 +50,7 @@ async function sheetRequest(path, data) {
 function setSheetBusy(busy) {
   sheetBusy = busy;
   document.querySelectorAll('[data-sheet-action]').forEach(button => { button.disabled = busy; });
-  sheetElement('sheetSyncButton').disabled = busy || !sheetState?.connection || !crmAdminSession.admin;
+  sheetElement('sheetSyncButton').disabled = busy || !sheetState?.connection || !crmAdminSession.can_edit;
   sheetElement('sheetImportButton').disabled = busy || !sheetPreviewToken;
   sheetElement('sheetConnectPanel').querySelectorAll('input,select').forEach(field => {field.disabled = busy;});
   sheetElement('sheetConnectionClose').disabled = busy;
@@ -76,13 +76,13 @@ async function runSheetAction(action) {
 
 function updateSheetAdminControls() {
   document.querySelectorAll('button[onclick="openSpreadsheetConnection()"]').forEach(button => {
-    button.classList.toggle('hidden', !crmAdminSession.admin);
+    button.classList.toggle('hidden', !crmAdminSession.can_edit);
     const label = sheetState?.connection ? 'Manage spreadsheet' : 'Connect Spreadsheet';
     if (button.textContent !== label) button.textContent = label;
   });
 }
 function openSpreadsheetConnection() {
-  if (!crmAdminSession.admin) {openAdminAccess(); return;}
+  if (!crmAdminSession.can_edit) {openAdminAccess(); return;}
   navigate('leads');
   sheetElement('sheetConnectPanel').open = true;
   const dialog = sheetElement('spreadsheetConnectionDialog');
@@ -272,10 +272,10 @@ function renderSheetConnection() {
   const source = sheetState?.source;
   const formLink = source?.form_link || connection?.form_link;
   updateSheetAdminControls();
-  sheetElement('sheetSavedCounts').textContent = connection ? (sheetState.leads.length + ' spreadsheet leads · ' + sheetState.queries.length + ' spreadsheet queries. Synced leads are included in the dashboard headcount.') : 'An administrator can connect a spreadsheet. Saved CRM records remain available.';
+  sheetElement('sheetSavedCounts').textContent = connection ? (sheetState.leads.length + ' spreadsheet leads · ' + sheetState.queries.length + ' spreadsheet queries. Synced leads are included in the dashboard headcount.') : 'Connect a spreadsheet to import responses. Saved CRM records remain available.';
   sheetElement('leadQueryFormLink').classList.toggle('hidden', !formLink);
   if (formLink) sheetElement('leadQueryFormLink').href = formLink;
-  sheetElement('leadQueryFormStatus').textContent = formLink ? (connection?.mode === 'form_responses' && source?.link !== undefined && source.link !== connection.link ? 'Form link saved. Its selected spreadsheet differs from the active connection; preview and import to activate it.' : connection?.mode === 'form_responses' ? 'Form responses are connected. New saved responses appear automatically after synchronization.' : 'Form link saved. Spreadsheet access and response import still need to be configured.') : 'The administrator can connect your team’s Google Form.';
+  sheetElement('leadQueryFormStatus').textContent = formLink ? (connection?.mode === 'form_responses' && source?.link !== undefined && source.link !== connection.link ? 'Form link saved. Its selected spreadsheet differs from the active connection; preview and import to activate it.' : connection?.mode === 'form_responses' ? 'Form responses are connected. New saved responses appear automatically after synchronization.' : 'Form link saved. Spreadsheet access and response import still need to be configured.') : 'Connect your team’s Google Form to show submitted leads and queries here.';
   sheetElement('sheetStatusText').textContent = connection ? 'Connected: ' + connection.name : 'No spreadsheet connected.';
   sheetElement('sheetSyncTime').textContent = connection ? 'Last successful sync: ' + (connection.last_success ? new Date(connection.last_success).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'}) + ' IST' : 'Not yet synced') + ' · Automatic refresh: ' + (connection.auto_minutes ? connection.auto_minutes + ' minutes' : 'Off') : '';
   sheetElement('sheetConnectionError').textContent = connection?.last_error || '';
@@ -283,8 +283,8 @@ function renderSheetConnection() {
   const link = sheetElement('sheetOpenLink');
   link.classList.toggle('hidden', !connection);
   if (connection) link.href = connection.link;
-  sheetElement('sheetCredentialHint').textContent = connection?.public_source ? 'This form-response worksheet is read through its existing Google link access. CRM does not change Google sharing or write to the sheet. Keep the intended source access available for automatic sync.' : sheetState?.google_configured ? 'Google access is configured on the server. Share the source spreadsheet with that service account as Viewer; the access check will verify permission.' : 'Google access is not configured. Ask the administrator to configure server credentials using the setup instructions. Your sheet can stay private.';
-  sheetElement('sheetSyncButton').disabled = sheetBusy || !connection || !crmAdminSession.admin;
+  sheetElement('sheetCredentialHint').textContent = connection?.public_source ? 'This form-response worksheet is read through its existing Google link access. CRM does not change Google sharing or write to the sheet. Keep the intended source access available for automatic sync.' : sheetState?.google_configured ? 'Google access is configured on the server. Share the source spreadsheet with that service account as Viewer; the access check will verify permission.' : 'Google access is not configured. Ask the server owner to configure Google credentials using the setup instructions. Your sheet can stay private.';
+  sheetElement('sheetSyncButton').disabled = sheetBusy || !connection || !crmAdminSession.can_edit;
 }
 
 function importSpreadsheetPreview() {

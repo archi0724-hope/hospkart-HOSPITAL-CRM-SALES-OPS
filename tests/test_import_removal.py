@@ -10,6 +10,8 @@ from crm_test_environment import app
 
 class ImportRemovalAuthorizationTests(unittest.TestCase):
     def setUp(self):
+        policy = patch.dict(app.app.config, {'ADMIN_ACCESS_REQUIRED': True})
+        policy.start(); self.addCleanup(policy.stop)
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.path = Path(temp.name) / 'admin.hash'

@@ -172,16 +172,17 @@ def authorize_import_removal():
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return jsonify({"ok": False, "error": "Provide a removal request."}), 400
-    password = body.get("password")
-    with admin_lock:
-        now = monotonic()
-        while admin_attempts and admin_attempts[0] <= now - 60:
-            admin_attempts.popleft()
-        if len(admin_attempts) >= 5:
-            return jsonify({"ok": False, "error": "Too many incorrect admin passwords. Try again in one minute."}), 429
-        if not getattr(g, "admin_actor", None) and (not isinstance(password, str) or len(password) > 1024 or not check_password_hash(password_hash, password)):
-            admin_attempts.append(now)
-            return jsonify({"ok": False, "error": "Incorrect admin password. No data was removed."}), 403
+    if not getattr(g, 'admin_actor', None):
+        password = body.get("password")
+        with admin_lock:
+            now = monotonic()
+            while admin_attempts and admin_attempts[0] <= now - 60:
+                admin_attempts.popleft()
+            if len(admin_attempts) >= 5:
+                return jsonify({"ok": False, "error": "Too many incorrect admin passwords. Try again in one minute."}), 429
+            if not getattr(g, "admin_actor", None) and (not isinstance(password, str) or len(password) > 1024 or not check_password_hash(password_hash, password)):
+                admin_attempts.append(now)
+                return jsonify({"ok": False, "error": "Incorrect admin password. No data was removed."}), 403
     scope, name = body.get("scope"), body.get("name")
     if scope not in {"worksheet", "workbook", "segment"} or not isinstance(name, str) or not name.strip() or len(name) > 255:
         return jsonify({"ok": False, "error": "Choose one imported worksheet, workbook, or section."}), 400
