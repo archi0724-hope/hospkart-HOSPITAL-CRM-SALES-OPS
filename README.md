@@ -439,3 +439,10 @@ Automatic synchronization previously enabled by an admin continues on the server
 Saving a source link does not connect to Google or import responses. Google Application Default Credentials, enabled Sheets/Drive APIs and Viewer sharing are still required, followed by administrator mapping, preview and import. Local changes must be deployed to Render separately to protect the hosted service. Use persistent PostgreSQL or persistent disk storage on Render to retain users, sessions and activity history.
 
 Verification: `python -m unittest discover -s tests`, `python tests/check_admin_access.py`, and `python tests/check_spreadsheet_sync.py`. The checks use isolated temporary databases and synthetic accounts/data; no customer messages or live Google calls are needed. Older browser scripts that perform writes must sign in to an isolated synthetic admin account first.
+
+
+### Connected spreadsheet display and counts
+
+Once connected, Leads & Queries shows the saved connection status, form link and records. Spreadsheet setup lives in an administrator-only **Manage spreadsheet** dialog. Sync details are collapsed by default. The lead/query navigation badge uses the lead workspace headcount; the query summary uses saved query records, including linked form queries after their lead moves to another pipeline stage. Imported form responses contribute one lead each to dashboard headcount; their linked query is displayed separately and does not add a second lead. Repeated sync keeps stable record IDs and does not inflate totals.
+
+Verification: `python tests/check_connected_sheet_dashboard.py` checks connected display, admin management, saved query counts, headcount updates and repeat sync in Chrome/Edge with synthetic records.

@@ -76,6 +76,7 @@ def check():
                         page.locator('#sheetSyncButton').click()
                         page.wait_for_function('!sheetBusy')
                         assert page.evaluate("sectionRecords.leads.filter(row=>row.id==='0002').length") == 1
+                        page.locator('.sheet-sync-details > summary').click()
                         assert '2 unchanged' in page.locator('#sheetSyncReport').inner_text()
                         assert 'Revised requirements' in page.locator('#sheetQueryRows').inner_text()
                         assert page.locator('#leadTotal').inner_text() == str(base['leads'] + 2)

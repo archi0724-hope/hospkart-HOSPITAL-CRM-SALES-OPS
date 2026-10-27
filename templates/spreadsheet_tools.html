@@ -1,41 +1,16 @@
 <div class="toolbar-actions sheet-toolbar">
   <button class="btn navy" type="button" onclick="openLeadQueryExport()">Export Excel</button>
-  <button class="btn" type="button" onclick="openSpreadsheetConnection()">Connect Spreadsheet</button>
+  <button class="btn hidden" id="sheetManageButton" type="button" onclick="openSpreadsheetConnection()">Manage spreadsheet</button>
   <button class="btn primary" type="button" data-sheet-action onclick="syncLinkedSpreadsheet()" id="sheetSyncButton" disabled>Sync Now</button>
 </div>
 <div class="card sheet-card" id="sheetConnectionStatus" aria-live="polite">
-  <div class="card-body"><p id="sheetStatusText">No spreadsheet connected.</p><p class="mini-help" id="sheetSyncTime"></p><a id="sheetOpenLink" class="btn small hidden" target="_blank" rel="noopener noreferrer">Open Linked Sheet</a><p id="sheetConnectionError" class="sheet-error" role="status"></p><div id="sheetSyncReport"></div></div>
+  <div class="card-body"><p id="sheetStatusText">No spreadsheet connected.</p><p class="mini-help" id="sheetSyncTime"></p><a id="sheetOpenLink" class="btn small hidden" target="_blank" rel="noopener noreferrer">Open Linked Sheet</a><p id="sheetConnectionError" class="sheet-error" role="status"></p><p class="mini-help" id="sheetSavedCounts"></p><details class="sheet-sync-details"><summary>Last sync details</summary><div id="sheetSyncReport"></div></details></div>
 </div>
 <div class="card sheet-card" id="leadQueryFormCard">
   <div class="card-head"><h2>Lead &amp; Query Form</h2><a id="leadQueryFormLink" class="btn primary hidden" target="_blank" rel="noopener noreferrer">Open Lead / Query Form</a></div>
-  <div class="card-body"><p id="leadQueryFormStatus" class="mini-help">Save a Google Form link below to let your team submit leads and queries.</p><p class="mini-help">In Google Forms, open Responses → Link to Sheets and choose the spreadsheet connected here. New submissions appear in the CRM after Sync Now or automatic refresh. Google sign-in may be required by the form owner.</p></div>
+  <div class="card-body"><p id="leadQueryFormStatus" class="mini-help">The administrator can connect your team’s Google Form.</p><p class="mini-help">Responses from the linked sheet appear in the lead and query records below. Each form response contributes one lead to the dashboard headcount; a linked query is shown separately.</p></div>
 </div>
-<details class="card sheet-card" id="sheetConnectPanel">
-  <summary class="card-head">Connect Spreadsheet</summary>
-  <div class="card-body">
-    <p class="mini-help">Connect separate Leads and Queries tabs, or a single Google Form response worksheet. Headers must be in row 1. This connection reads from the sheet only; source rows removed from the sheet stay in the CRM.</p>
-    <p class="mini-help" id="sheetCredentialHint">An administrator must configure Google access on the server and share the sheet with that service account as Viewer. Keep the sheet private.</p>
-    <p class="mini-help">Only the administrator can save or change this connection. Team members can open the saved form and sync the configured sheet. Sign in using Admin sign-in to manage the connection.</p>
-    <div class="field"><label for="sheetLinkInput">Google Drive / Google Sheets link</label><input id="sheetLinkInput" class="control" type="url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" oninput="invalidateSheetInspection()"></div>
-    <div class="field"><label for="sheetSourceMode">Spreadsheet layout</label><select id="sheetSourceMode" class="control" onchange="changeSheetSourceMode()"><option value="tabs">Separate Leads and Queries worksheets</option><option value="form_responses">Google Form responses (one worksheet)</option></select></div>
-    <div class="field"><label for="sheetFormLinkInput">Google Form respondent link (optional)</label><input id="sheetFormLinkInput" class="control" type="url" placeholder="https://docs.google.com/forms/d/e/…/viewform" oninput="invalidateSheetPreview()"></div>
-    <button class="btn" type="button" data-sheet-action onclick="saveSpreadsheetSource()">Save form and source links</button>
-    <button class="btn" type="button" data-sheet-action onclick="inspectSpreadsheet()">Check link and access</button>
-    <div id="sheetTabStep" class="hidden">
-      <div class="form-grid sheet-form">
-        <div class="field"><label for="sheetLeadsTab" id="sheetLeadsTabLabel">Leads worksheet</label><select id="sheetLeadsTab" class="control" onchange="invalidateSheetMapping()"></select></div>
-        <div class="field" id="sheetQueriesTabField"><label for="sheetQueriesTab">Queries worksheet</label><select id="sheetQueriesTab" class="control" onchange="invalidateSheetMapping()"></select></div>
-        <div class="field"><label for="sheetAutoMinutes">Automatic refresh</label><select id="sheetAutoMinutes" class="control" onchange="invalidateSheetPreview()"><option value="0">Off — manual sync</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select></div>
-      </div>
-      <p class="mini-help">Automatic sync runs while the server is running with its scheduler enabled. The open dashboard checks for saved changes every 30 seconds. Use YYYY-MM-DD for dates and Plain text for IDs and phone numbers.</p>
-      <button class="btn" type="button" data-sheet-action onclick="loadSpreadsheetColumns()">Load columns</button>
-    </div>
-    <p id="sheetResponseHelp" class="mini-help hidden">Each response creates a lead. Product Inquiry, Customer Query, Existing Customer Query, Query, Service Inquiry and Service Request also create a linked query; New Sales Lead and New Lead create only a lead. Other submission types are flagged for review. A unique immutable Response ID is preferred. Otherwise, the submission timestamp identifies the record: keep it unchanged and unique. Duplicate IDs/timestamps are rejected. Names, phone numbers and row positions are never used to identify a response. Separate responses from the same customer remain separate leads.</p>
-    <div id="sheetMappingStep" class="hidden"><div id="sheetMappings" class="sheet-mappings"></div><p class="mini-help">* Required mapping. Unmapped CRM fields are kept. Blank cells in mapped columns clear those values. IDs are case-sensitive; names and row positions are never used for matching. Matching IDs also update the displayed record in this browser.</p><button class="btn navy" type="button" data-sheet-action onclick="previewSpreadsheet()">Preview and validate</button></div>
-    <div id="sheetPreviewStep" class="hidden"><h3>Import preview</h3><div id="sheetPreviewReport"></div><div id="sheetPreviewRows"></div><p class="mini-help">Up to 10 valid rows per tab are shown. Import applies the reviewed snapshot; invalid rows are rejected and existing saved records are kept. The preview expires after 15 minutes. Review ID collisions before continuing.</p><button class="btn primary" type="button" data-sheet-action onclick="importSpreadsheetPreview()" id="sheetImportButton">Import valid rows and save connection</button></div>
-    <p id="sheetSetupMessage" role="status" aria-live="polite"></p>
-  </div>
-</details>
+
 <div class="sheet-filters" aria-label="Lead filters">
   <div class="field"><label for="sheetLeadSearch">Search leads</label><input id="sheetLeadSearch" class="control" type="search" placeholder="ID, name, company, contact…" oninput="renderLeadBoard();renderSpreadsheetRecords()"></div>
   <div class="field"><label for="sheetLeadStatus">Lead status</label><select id="sheetLeadStatus" class="control" onchange="renderLeadBoard();renderSpreadsheetRecords()"><option value="">All statuses</option></select></div>

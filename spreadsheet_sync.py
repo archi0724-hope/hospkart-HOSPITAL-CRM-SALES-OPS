@@ -258,6 +258,7 @@ class SheetSync:
                       'google_configured': bool(os.getenv('GOOGLE_APPLICATION_CREDENTIALS') or os.getenv('GOOGLE_SHEETS_USE_ADC') == 'true')}
             source = conn.execute('SELECT settings FROM sheet_source_preferences WHERE id=1').fetchone()
             result['source'] = json.loads(source['settings']) if source else None
+            result['workspace_revision'] = conn.execute('SELECT revision FROM crm_workspace WHERE id=1').fetchone()[0]
             if connection:
                 result['connection'] = {**json.loads(connection['settings']),
                     'revision': connection['revision'], 'last_success': connection['last_success'],

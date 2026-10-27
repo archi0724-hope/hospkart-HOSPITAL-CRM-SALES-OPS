@@ -53,6 +53,8 @@ function setSheetBusy(busy) {
   sheetElement('sheetSyncButton').disabled = busy || !sheetState?.connection || !crmAdminSession.admin;
   sheetElement('sheetImportButton').disabled = busy || !sheetPreviewToken;
   sheetElement('sheetConnectPanel').querySelectorAll('input,select').forEach(field => {field.disabled = busy;});
+  sheetElement('sheetConnectionClose').disabled = busy;
+  updateSheetAdminControls();
 }
 
 async function runSheetAction(action) {
@@ -72,11 +74,23 @@ async function runSheetAction(action) {
   }
 }
 
+function updateSheetAdminControls() {
+  document.querySelectorAll('button[onclick="openSpreadsheetConnection()"]').forEach(button => {
+    button.classList.toggle('hidden', !crmAdminSession.admin);
+    const label = sheetState?.connection ? 'Manage spreadsheet' : 'Connect Spreadsheet';
+    if (button.textContent !== label) button.textContent = label;
+  });
+}
 function openSpreadsheetConnection() {
+  if (!crmAdminSession.admin) {openAdminAccess(); return;}
   navigate('leads');
   sheetElement('sheetConnectPanel').open = true;
-  sheetElement('sheetConnectPanel').scrollIntoView({behavior: 'smooth', block: 'start'});
+  const dialog = sheetElement('spreadsheetConnectionDialog');
+  if (!dialog.open) dialog.showModal();
   sheetElement('sheetLinkInput').focus();
+}
+function closeSpreadsheetConnection() {
+  if (!sheetBusy) sheetElement('spreadsheetConnectionDialog').close();
 }
 
 function invalidateSheetPreview() {
@@ -218,8 +232,8 @@ async function applySheetState(result) {
   if (typeof sharedWorkspaceEnabled !== 'undefined' && sharedWorkspaceEnabled) {
     const changed = sheetAppliedRevision !== revision;
     sheetState = result; sheetAppliedRevision = revision;
-    if (changed) await refreshSharedWorkspace(sheetBusy);
-    renderSheetConnection(); renderSpreadsheetRecords();
+    if (changed || result.workspace_revision > sharedWorkspaceRevision) await refreshSharedWorkspace(sheetBusy);
+    renderSheetConnection(); renderLeadBoard(); renderSpreadsheetRecords(); renderDashboard();
     return;
   }
   if (revision !== sheetAppliedRevision) {
@@ -257,9 +271,11 @@ function renderSheetConnection() {
   const connection = sheetState?.connection;
   const source = sheetState?.source;
   const formLink = source?.form_link || connection?.form_link;
+  updateSheetAdminControls();
+  sheetElement('sheetSavedCounts').textContent = connection ? (sheetState.leads.length + ' spreadsheet leads · ' + sheetState.queries.length + ' spreadsheet queries. Synced leads are included in the dashboard headcount.') : 'An administrator can connect a spreadsheet. Saved CRM records remain available.';
   sheetElement('leadQueryFormLink').classList.toggle('hidden', !formLink);
   if (formLink) sheetElement('leadQueryFormLink').href = formLink;
-  sheetElement('leadQueryFormStatus').textContent = formLink ? (connection?.mode === 'form_responses' && source?.link !== undefined && source.link !== connection.link ? 'Form link saved. Its selected spreadsheet differs from the active connection; preview and import to activate it.' : connection?.mode === 'form_responses' ? 'Form response worksheet: ' + connection.response_tab + '. Use Sync Now to import the latest saved responses.' : 'Form link saved. Spreadsheet access and response import still need to be configured.') : 'Save a Google Form link below to let your team submit leads and queries.';
+  sheetElement('leadQueryFormStatus').textContent = formLink ? (connection?.mode === 'form_responses' && source?.link !== undefined && source.link !== connection.link ? 'Form link saved. Its selected spreadsheet differs from the active connection; preview and import to activate it.' : connection?.mode === 'form_responses' ? 'Form responses are connected. New saved responses appear automatically after synchronization.' : 'Form link saved. Spreadsheet access and response import still need to be configured.') : 'The administrator can connect your team’s Google Form.';
   sheetElement('sheetStatusText').textContent = connection ? 'Connected: ' + connection.name : 'No spreadsheet connected.';
   sheetElement('sheetSyncTime').textContent = connection ? 'Last successful sync: ' + (connection.last_success ? new Date(connection.last_success).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'}) + ' IST' : 'Not yet synced') + ' · Automatic refresh: ' + (connection.auto_minutes ? connection.auto_minutes + ' minutes' : 'Off') : '';
   sheetElement('sheetConnectionError').textContent = connection?.last_error || '';
@@ -277,7 +293,8 @@ function importSpreadsheetPreview() {
     const result = await sheetRequest('import', {token: sheetPreviewToken});
     invalidateSheetPreview();
     await applySheetState(result);
-    toast('Spreadsheet imported and connection saved. Rejected rows are listed for review.');
+    sheetElement('spreadsheetConnectionDialog').close();
+    toast('Spreadsheet imported and connection saved. Lead/query records and dashboard headcount updated.');
   });
 }
 function syncLinkedSpreadsheet() {
@@ -334,6 +351,7 @@ function renderSpreadsheetRecords() {
   const leads = visibleLeadRecords(), visibleQueries = visibleQueryRecords();
   sheetElement('sheetLeadVisibleCount').textContent = 'Showing ' + leads.length + ' of ' + sectionRecords.leads.length + ' leads (all pipeline stages)';
   sheetElement('sheetQueryTotal').textContent = String(queries.length);
+  sheetElement('leadQueryCount').textContent = String(queries.length);
   sheetElement('sheetQueryVisibleCount').textContent = 'Showing ' + visibleQueries.length + ' of ' + queries.length + ' queries';
   const leadBody = sheetElement('sheetLeadRows');
   leadBody.innerHTML = leads.map(row => '<tr><td>' + sheetEscape(row.id) + '</td><td>' + sheetEscape(row.name) + '<div class="tiny">' + sheetEscape(row.company) + '</div></td><td>' + sheetEscape(row.email) + '<br>' + sheetEscape(row.mobile) + '</td><td>' + sheetEscape(row.status) + '</td><td>' + sheetEscape(row.executive) + '</td><td>' + sheetEscape(row.created_date) + '</td><td>' + sheetEscape(row.next) + '</td><td><button class="action-link" type="button">Edit record</button></td></tr>').join('') || '<tr><td colspan="8" class="empty-state">No leads match these filters.</td></tr>';
