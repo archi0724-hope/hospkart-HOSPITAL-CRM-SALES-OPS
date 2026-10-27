@@ -50,7 +50,7 @@ async function sheetRequest(path, data) {
 function setSheetBusy(busy) {
   sheetBusy = busy;
   document.querySelectorAll('[data-sheet-action]').forEach(button => { button.disabled = busy; });
-  sheetElement('sheetSyncButton').disabled = busy || !sheetState?.connection;
+  sheetElement('sheetSyncButton').disabled = busy || !sheetState?.connection || !crmAdminSession.admin;
   sheetElement('sheetImportButton').disabled = busy || !sheetPreviewToken;
   sheetElement('sheetConnectPanel').querySelectorAll('input,select').forEach(field => {field.disabled = busy;});
 }
@@ -268,7 +268,7 @@ function renderSheetConnection() {
   link.classList.toggle('hidden', !connection);
   if (connection) link.href = connection.link;
   sheetElement('sheetCredentialHint').textContent = connection?.public_source ? 'This form-response worksheet is read through its existing Google link access. CRM does not change Google sharing or write to the sheet. Keep the intended source access available for automatic sync.' : sheetState?.google_configured ? 'Google access is configured on the server. Share the source spreadsheet with that service account as Viewer; the access check will verify permission.' : 'Google access is not configured. Ask the administrator to configure server credentials using the setup instructions. Your sheet can stay private.';
-  sheetElement('sheetSyncButton').disabled = sheetBusy || !connection;
+  sheetElement('sheetSyncButton').disabled = sheetBusy || !connection || !crmAdminSession.admin;
 }
 
 function importSpreadsheetPreview() {
