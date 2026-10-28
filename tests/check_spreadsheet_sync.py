@@ -76,8 +76,11 @@ def check():
                         page.locator('#sheetSyncButton').click()
                         page.wait_for_function('!sheetBusy')
                         assert page.evaluate("sectionRecords.leads.filter(row=>row.id==='0002').length") == 1
-                        page.locator('.sheet-sync-details > summary').click()
+                        page.locator('#sheetManageButton').click()
+                        page.get_by_text('Connection and form details',exact=True).click()
+                        page.locator('#sheetConnectionStatus .sheet-sync-details > summary').click()
                         assert '2 unchanged' in page.locator('#sheetSyncReport').inner_text()
+                        page.get_by_role('button',name='Close spreadsheet setup',exact=True).click()
                         assert 'Revised requirements' in page.locator('#sheetQueryRows').inner_text()
                         assert page.locator('#leadTotal').inner_text() == str(base['leads'] + 2)
                         assert page.locator('#kpiClients').inner_text() == str(base['total'] + 2)
