@@ -23,6 +23,7 @@ function renderDashboardAvailability() {
   if (reason?.textContent.startsWith('These changes were not saved.')) reason.textContent = 'Unsaved changes are preserved on this device. Download a copy; restore is unavailable while offline.';
   const notice = document.getElementById('browserStorageNotice');
   if (notice?.textContent.startsWith('The shared database could not be reached.')) notice.classList.add('hidden');
+  if (typeof renderIntelligence === 'function' && (!intelligenceSnapshot || intelligenceSnapshot.offline_copy)) renderIntelligence(null,true);
   if (!cached) {
     document.querySelectorAll('.kpi .value,.summary-box b,.nav-count').forEach(node => {node.textContent = '—';});
     document.querySelectorAll('.empty-state').forEach(node => {node.textContent = 'Saved records are unavailable while the database is offline.';});

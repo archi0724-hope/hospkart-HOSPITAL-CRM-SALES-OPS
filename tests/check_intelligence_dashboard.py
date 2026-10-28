@@ -59,14 +59,16 @@ def check():
                 page.evaluate('refreshSharedWorkspace(true)')
                 page.wait_for_function('intelligenceSnapshot.revision === sharedWorkspaceRevision && intelligenceSnapshot.workspace_records === 3')
                 assert page.locator('#intelligenceOverdue').inner_text() == '2'
-                # Failed reads remove stale counts instead of suggesting fresh insights.
+                # Failed server reads use an explicitly labeled browser copy.
                 page.route('**/api/quotesaarthi/knowledge', lambda route:route.fulfill(status=503,content_type='application/json',body='{"ok":false,"error":"Unavailable"}'))
                 page.locator('#intelligenceRefresh').click()
-                page.wait_for_function("document.getElementById('intelligenceOverdue').textContent === '—'")
-                assert 'unavailable' in page.locator('#intelligenceSource').inner_text()
+                page.wait_for_function("intelligenceSnapshot?.offline_copy === true")
+                assert page.locator('#intelligenceOverdue').inner_text() == '2'
+                assert 'browser copy' in page.locator('#intelligenceSource').inner_text()
+                assert 'not verified with server' in page.locator('#intelligenceScope').inner_text()
                 page.unroute('**/api/quotesaarthi/knowledge')
                 page.locator('#intelligenceRefresh').click()
-                page.wait_for_function("document.getElementById('intelligenceOverdue').textContent === '2'")
+                page.wait_for_function("document.getElementById('intelligenceOverdue').textContent === '2' && !intelligenceSnapshot.offline_copy")
                 if channel == os.getenv('BROWSER_CHANNELS','chrome,msedge').split(',')[0]:
                     page.screenshot(path=str(Path(__file__).resolve().parents[1]/'data'/'quotesaarthi-intelligence-desktop.png'))
                 page.set_viewport_size({'width':390,'height':844})
