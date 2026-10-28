@@ -46,6 +46,14 @@ def check():
                         assert 'Cached Test Hospital' in page.locator('#page-clients').inner_text()
                     else:
                         assert page.locator('#clientTotal').inner_text()=='—'
+                    assert page.locator('#databaseOfflineBanner').get_attribute('class')=='database-status-note'
+                    assert not page.locator('#sharedDatabaseStatus').is_visible()
+                    await_reason = 'These changes were not saved. The shared database is unavailable.'
+                    page.evaluate('(reason)=>{document.getElementById("sharedRecoveryNotice").classList.remove("hidden");document.getElementById("sharedRecoveryReason").textContent=reason;renderDashboardAvailability();}', await_reason)
+                    assert page.locator('#sharedRecoveryNotice').is_visible()
+                    assert page.locator('#sharedRecoveryNotice button').filter(has_text='Restore preserved').is_disabled()
+                    assert page.locator('#sharedRecoveryNotice button').filter(has_text='Download preserved').is_enabled()
+                    assert 'Unsaved changes are preserved' in page.locator('#sharedRecoveryReason').inner_text()
                     assert not errors,errors
                     reports.append({'browser':channel,'cached_copy':cached,'navigation':True,'honest_counts':True,'writes_disabled':True})
                     context.close()
