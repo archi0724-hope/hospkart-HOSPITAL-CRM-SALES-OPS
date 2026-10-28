@@ -114,6 +114,22 @@ def build_knowledge(conn, now=None):
         'checks': {'passed': not issues, 'issues': issues, 'checked_at': checked_at}}
 
 
+def aggregate_ai_context(knowledge):
+    """Explicit counts-only consent: no records, contacts, text or invoice amounts."""
+    workspaces = {name: {key: summary[key] for key in ('records','distinct_clients','active_records')}
+                  for name, summary in knowledge['workspaces'].items()}
+    invoices = knowledge['invoice_analysis']
+    invoice_counts = {key: invoices[key] for key in ('invoice_count','distinct_clients','served_entries')} if invoices else None
+    return {'today': knowledge['today'], 'revision': knowledge['revision'],
+            'metric_definitions': {'workspace_records': 'Record headcount across saved workspaces, including independent copies; not unique hospitals.',
+                                   'workspace_distinct_clients': 'Distinct clients within each individual workspace; do not add these for a global unique count.'},
+            'kpis': {'workspace_records': knowledge['workspace_records']}, 'workspaces': workspaces,
+            'followup_counts': knowledge['followup_counts'], 'query_count': len(knowledge['queries']),
+            'complaint_counts': {'total': len(knowledge['complaints']),
+                                 'open': sum(n for status,n in knowledge['complaint_status_counts'].items() if str(status).casefold() not in ('resolved','closed'))},
+            'invoice_counts': invoice_counts}
+
+
 def public_status(knowledge):
     return {key: knowledge[key] for key in ('source', 'revision', 'updated_at', 'checked_at', 'scope', 'workspace_records', 'workspaces', 'checks')} | {
         'queries': len(knowledge['queries']), 'complaints': len(knowledge['complaints']),

@@ -640,7 +640,7 @@ def smartbot_reply(message: str, context: dict | None = None) -> str:
             "If invoice_analysis is null or a required worksheet is missing, say the corresponding analysis is unavailable instead of guessing or reporting zero.",
             "For a hospital-specific draft without a selected_client, ask the user to select a hospital. Use only known requirements and status; do not promise prices, dispatch dates or confirmed orders.",
             "Drafts need user review. You cannot send messages, change records, remove sheets or reset this dashboard through chat, and must not claim to have done so.",
-            "For removing one import, direct the user to Data & backups > Manage imported Excel data and the admin password confirmation. Do not recommend a full dashboard reset for removing one sheet.",
+            "For removing one import, direct the user to Data & backups > Manage imported Excel data and the displayed removal confirmation. Do not recommend a full dashboard reset for removing one sheet.",
             "Help users follow the dashboard workflow: import into the intended workspace, check the preview and counts, save notes and follow-up dates, then download a JSON checkpoint before transferring browsers.",
         ],
     }
@@ -918,7 +918,21 @@ def quotesaarthi_chat():
             with db_conn() as conn:
                 conn.execute('BEGIN')
                 knowledge = crm_knowledge.build_knowledge(conn)
-            response = jsonify(ok=True,reply=crm_knowledge.reply(message,knowledge,context),session_id=token,exports=[],assistant='QuoteSaarthi',
+            answer = crm_knowledge.reply(message,knowledge,context)
+            provider = 'Saved CRM'
+            if env_bool('QUOTESAARTHI_LIVE_AI', False):
+                if os.getenv('OPENAI_API_KEY', '').strip():
+                    try:
+                        # Never forward the user's raw question or CRM record text.
+                        prompt = 'Summarize these aggregate CRM counts and suggest which counts need attention. You only know totals, not individual customers. Do not claim to edit records or send messages.'
+                        answer = 'Aggregate AI summary:\n\n' + smartbot_reply(prompt, crm_knowledge.aggregate_ai_context(knowledge))
+                        provider = 'OpenAI (aggregate counts only)'
+                    except Exception:
+                        app.logger.warning('Aggregate AI unavailable; returning saved CRM answer.')
+                        answer = 'Live AI is temporarily unavailable. Saved CRM answer:\n\n' + answer
+                else:
+                    answer = 'Live AI is not connected yet. Saved CRM answer:\n\n' + answer
+            response = jsonify(ok=True,reply=answer,provider=provider,session_id=token,exports=[],assistant='QuoteSaarthi',
                                knowledge={'revision':knowledge['revision'],'checked_at':knowledge['checked_at'],'source':knowledge['source']})
             response.headers['Cache-Control'] = 'no-store, private'
             return response

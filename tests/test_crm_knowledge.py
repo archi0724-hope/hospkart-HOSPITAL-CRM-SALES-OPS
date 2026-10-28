@@ -40,6 +40,26 @@ class CRMKnowledgeTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.json)
         return response.json
 
+    def test_live_ai_only_sends_aggregate_counts_and_preserves_read_only_fallback(self):
+        import os
+        before = self.client.get('/api/workspace').json['workspace']
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-test-key', 'QUOTESAARTHI_LIVE_AI': 'true'}):
+            with patch('app.smartbot_reply', return_value='Aggregate CRM brief') as model:
+                response = self.client.post('/api/quotesaarthi/chat',json={'message':'Summarize CRM dashboard for PRIVATE-CUSTOMER-123',
+                    'context':{'kpis':{'workspace_records':99999},'selected_client':{'name':'PRIVATE-CUSTOMER-123'}}})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json['provider'], 'OpenAI (aggregate counts only)')
+                prompt, context = model.call_args.args
+                payload = json.dumps([prompt,context])
+                self.assertEqual(context['kpis']['workspace_records'], 4)
+                for forbidden in ('PRIVATE-CUSTOMER-123','Alpha Hospital','Beta Clinic','Alpha contact','sourceData','selected_client','invoice_value'):
+                    self.assertNotIn(forbidden,payload)
+            with patch('app.smartbot_reply', side_effect=RuntimeError('service unavailable')):
+                result = self.client.post('/api/quotesaarthi/chat',json={'message':'Summarize CRM dashboard'}).json
+                self.assertEqual(result['provider'], 'Saved CRM')
+                self.assertIn('4 workspace records', result['reply'])
+        self.assertEqual(self.client.get('/api/workspace').json['workspace'], before)
+
     def test_status_poll_reuses_unchanged_analysis_but_checks_revisions(self):
         with patch('quotesaarthi.crm.build_knowledge', wraps=build_knowledge) as build:
             first = self.client.get('/api/quotesaarthi/knowledge')

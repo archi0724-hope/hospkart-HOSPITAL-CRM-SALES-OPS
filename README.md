@@ -450,3 +450,6 @@ Verification: `python tests/check_connected_sheet_dashboard.py` checks connected
 ### Database startup recovery
 
 If configured PostgreSQL is unavailable during startup, the web process keeps the dashboard layout and navigation available while returning HTTP 503 for data APIs. A saved browser copy is labeled as potentially out of date; without a copy, unavailable counts display a dash. Editing stays disabled, and the page checks for recovery once per minute. Static assets remain available. Database initialization is retried at most once per minute, and background jobs wait until it succeeds. Existing records stay in the configured database; no SQLite fallback is created. This lets a TCP-health-checked Render service start during an outage, but data remains unavailable until the database/account limit is restored. `/api/health` continues to return 503 while initialization is pending.
+
+
+For live OpenAI summaries, configure `OPENAI_API_KEY` privately and set `QUOTESAARTHI_LIVE_AI=true`. The approved integration sends only server-computed aggregate counts and a fixed summary prompt. It never forwards the raw user question, hospital names, contacts, record IDs, query/complaint text, invoice rows or invoice amounts. The mode defaults off; unavailable API calls fall back to saved CRM answers and never modify records. API usage is billed separately.
