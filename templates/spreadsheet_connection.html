@@ -26,4 +26,13 @@
     <p id="sheetSetupMessage" role="status" aria-live="polite"></p>
   </div>
 </details>
+<details class="sheet-sync-details"><summary>Connection and form details</summary>
+<div class="card sheet-card" id="sheetConnectionStatus" aria-live="polite">
+  <div class="card-body"><p id="sheetStatusText">No spreadsheet connected.</p><p class="mini-help" id="sheetSyncTime"></p><a id="sheetOpenLink" class="btn small hidden" target="_blank" rel="noopener noreferrer">Open Linked Sheet</a><p id="sheetConnectionError" class="sheet-error" role="status"></p><p class="mini-help" id="sheetSavedCounts"></p><details class="sheet-sync-details"><summary>Last sync details</summary><div id="sheetSyncReport"></div></details></div>
+</div>
+<div class="card sheet-card" id="leadQueryFormCard">
+  <div class="card-head"><h2>Lead &amp; Query Form</h2><a id="leadQueryFormLink" class="btn primary hidden" target="_blank" rel="noopener noreferrer">Open Lead / Query Form</a></div>
+  <div class="card-body"><p id="leadQueryFormStatus" class="mini-help">Connect your team’s Google Form to show submitted leads and queries here.</p><p class="mini-help">Responses from the linked sheet appear in the lead and query records below. Each form response contributes one lead to the dashboard headcount; a linked query is shown separately.</p></div>
+</div>
+</details>
 </dialog>

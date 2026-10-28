@@ -3,14 +3,6 @@
   <button class="btn hidden" id="sheetManageButton" type="button" onclick="openSpreadsheetConnection()">Manage spreadsheet</button>
   <button class="btn primary" type="button" data-sheet-action onclick="syncLinkedSpreadsheet()" id="sheetSyncButton" disabled>Sync Now</button>
 </div>
-<div class="card sheet-card" id="sheetConnectionStatus" aria-live="polite">
-  <div class="card-body"><p id="sheetStatusText">No spreadsheet connected.</p><p class="mini-help" id="sheetSyncTime"></p><a id="sheetOpenLink" class="btn small hidden" target="_blank" rel="noopener noreferrer">Open Linked Sheet</a><p id="sheetConnectionError" class="sheet-error" role="status"></p><p class="mini-help" id="sheetSavedCounts"></p><details class="sheet-sync-details"><summary>Last sync details</summary><div id="sheetSyncReport"></div></details></div>
-</div>
-<div class="card sheet-card" id="leadQueryFormCard">
-  <div class="card-head"><h2>Lead &amp; Query Form</h2><a id="leadQueryFormLink" class="btn primary hidden" target="_blank" rel="noopener noreferrer">Open Lead / Query Form</a></div>
-  <div class="card-body"><p id="leadQueryFormStatus" class="mini-help">Connect your team’s Google Form to show submitted leads and queries here.</p><p class="mini-help">Responses from the linked sheet appear in the lead and query records below. Each form response contributes one lead to the dashboard headcount; a linked query is shown separately.</p></div>
-</div>
-
 <div class="sheet-filters" aria-label="Lead filters">
   <div class="field"><label for="sheetLeadSearch">Search leads</label><input id="sheetLeadSearch" class="control" type="search" placeholder="ID, name, company, contact…" oninput="renderLeadBoard();renderSpreadsheetRecords()"></div>
   <div class="field"><label for="sheetLeadStatus">Lead status</label><select id="sheetLeadStatus" class="control" onchange="renderLeadBoard();renderSpreadsheetRecords()"><option value="">All statuses</option></select></div>
