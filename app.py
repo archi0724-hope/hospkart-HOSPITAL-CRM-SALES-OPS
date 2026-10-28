@@ -1123,7 +1123,7 @@ database_readiness = DatabaseReadiness(init_db, defer_errors=bool(DATABASE_URL))
 
 @app.before_request
 def wait_for_database_initialization():
-    if request.path.startswith('/static/') or database_readiness.ensure():
+    if request.path.startswith('/static/') or request.path == '/' or database_readiness.ensure():
         return
     headers = {'Retry-After': '60', 'Cache-Control': 'no-store, private'}
     if request.path.startswith('/api/'):

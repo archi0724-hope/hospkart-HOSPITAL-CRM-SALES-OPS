@@ -30,7 +30,7 @@ class DatabaseReadiness:
                 if not self.defer_errors:
                     raise
                 self.next_attempt = monotonic() + self.retry_seconds
-                logging.getLogger(__name__).warning('Database initialization unavailable; serving maintenance responses and retrying later.')
+                logging.getLogger(__name__).warning('Database initialization unavailable; serving the dashboard with unavailable data APIs and retrying later.')
                 return False
             self.ready = True
             return True

@@ -37,9 +37,9 @@ class DatabaseReadinessTests(unittest.TestCase):
             state = DatabaseReadiness(Mock(side_effect=sqlite3.DatabaseError('unavailable')), defer_errors=True)
             with patch.object(app, 'database_readiness', state):
                 page = client.get('/')
-                self.assertEqual(page.status_code, 503)
-                self.assertIn('Database temporarily unavailable', page.get_data(as_text=True))
-                self.assertEqual(page.headers['Retry-After'], '60')
+                self.assertEqual(page.status_code, 200)
+                self.assertIn('page-dashboard', page.get_data(as_text=True))
+                self.assertIn('offline-dashboard.js', page.get_data(as_text=True))
                 self.assertEqual(client.get('/api/health').status_code, 503)
                 self.assertEqual(client.post('/api/workspace', json={}).status_code, 503)
                 self.assertEqual(client.get('/static/admin-access.js').status_code, 200)
