@@ -86,6 +86,11 @@ def check():
                 assert repeated['connection']['report']['counts']['leads']['unchanged']==1
                 assert len(repeated['queries'])==1
                 assert repeated['queries'][0]['lead_id']=='0001'
+                provider.rows[0]=[provider.rows[0][0]]
+                deleted=client.post('/api/spreadsheet/sync',json={},headers=headers).json
+                assert deleted['leads']==[] and deleted['queries']==[]
+                assert not any(row['id']=='0001' for row in workspace()['values']['hk_v2_leads'])
+                assert deleted['connection']['report']['counts']['leads']['removed']==1
             report['sheet_add_edit_repeat_and_relationship']=True
             with app.db_conn() as conn:
                 epoch=conn.execute('SELECT last_attempt_epoch FROM sheet_connection').fetchone()[0]

@@ -135,6 +135,23 @@ def reset(conn, expected_revision=None):
     return write(conn, current, values)
 
 
+def remove_sheet_leads(conn, identifiers):
+    """Remove source leads and their explicitly linked workspace copies atomically."""
+    if not identifiers:
+        return
+    current = read(conn)
+    patch = {}
+    for scope in ('clients',) + SECTIONS:
+        key = 'hk_v2_' + scope
+        rows = current['values'][key]
+        kept = [row for row in rows if not (scope == 'leads' and row['id'] in identifiers) and not (
+            row.get('sourceWorkspace') == 'leads' and row.get('sourceRecordId') in identifiers)]
+        if kept != rows:
+            patch[key] = kept
+    if patch:
+        write(conn, current, patch)
+
+
 def merge_sheet_leads(conn, incoming):
     """Called inside the sheet import transaction so every browser sees one result."""
     if not incoming:

@@ -152,20 +152,107 @@ class SpreadsheetTests(unittest.TestCase):
         self.assertEqual(imported['queries'][0]['lead_id'], '0001')
         self.assertEqual(self.post('import', {'token': preview['token']}).status_code, 409)
 
-    def test_add_edit_repeat_and_missing_rows_never_delete(self):
+    def test_deletion_preview_is_read_only_and_query_deletion_keeps_lead(self):
+        self.connect()
+        self.provider.rows[1] = [self.provider.rows[1][0]]
+        preview = self.post('preview', connection_payload()).json
+        self.assertEqual(preview['report']['counts']['queries']['removed'], 1)
+        self.assertEqual(len(self.status()['queries']), 1)
+        result = self.post('import', {'token': preview['token']}).json
+        self.assertEqual(len(result['leads']), 1)
+        self.assertEqual(result['queries'], [])
+        self.assertEqual(len(self.client.get('/api/workspace').json['workspace']['values']['hk_v2_leads']), 1)
+
+    def test_delete_lead_removes_linked_query_but_keeps_manual_records(self):
+        self.connect()
+        workspace = self.client.get('/api/workspace').json['workspace']
+        leads = workspace['values']['hk_v2_leads'] + [{'id': 'MANUAL', 'name': 'Manual hospital'}]
+        self.client.post('/api/workspace', json={'revision': workspace['revision'], 'values': {
+            'hk_v2_leads': leads,
+            'hk_v2_clients': [{'id': '0001', 'name': 'Unrelated manual client'}],
+            'hk_v2_potential': [{'id': 'COPY', 'name': 'Linked hospital', 'sourceWorkspace': 'leads', 'sourceRecordId': '0001'}]
+        }}, headers=HEADERS)
+        self.provider.rows[0] = [self.provider.rows[0][0]]
+        result = self.post('sync')
+        self.assertEqual(result.status_code, 200, result.json)
+        self.assertEqual(result.json['queries'], [])
+        values = self.client.get('/api/workspace').json['workspace']['values']
+        self.assertEqual([row['id'] for row in values['hk_v2_leads']], ['MANUAL'])
+        self.assertEqual(values['hk_v2_clients'][0]['name'], 'Unrelated manual client')
+        self.assertEqual(values['hk_v2_potential'], [])
+        self.assertEqual(values['hk_v2_segments']['potential'], [])
+        self.assertEqual(result.json['connection']['report']['counts']['queries']['removed'], 1)
+        repeat = self.post('sync').json
+        self.assertEqual(repeat['connection']['report']['counts']['leads']['removed'], 0)
+
+    def test_invalid_rows_and_failed_reads_do_not_cause_deletions(self):
+        self.connect()
+        self.provider.rows[0][1][0] = ''
+        result = self.post('sync').json
+        self.assertEqual(len(result['leads']), 1)
+        self.assertEqual(result['connection']['report']['counts']['leads']['removed'], 0)
+        self.assertTrue(result['connection']['report']['warnings'])
+        self.provider.failure = SheetError('Unavailable', 502)
+        self.assertEqual(self.post('sync').status_code, 502)
+        self.assertEqual(len(self.status()['leads']), 1)
+
+    def test_source_switch_does_not_delete_other_source_records(self):
+        self.connect()
+        self.provider.rows[0][1][0] = 'OTHER'
+        self.provider.rows[1] = [self.provider.rows[1][0]]
+        inspect = self.provider.inspect
+        def inspect_source(file_id):
+            info = inspect(file_id)
+            info['url'] = 'https://docs.google.com/spreadsheets/d/' + file_id + '/edit'
+            return info
+        self.provider.inspect = inspect_source
+        payload = connection_payload();payload['link'] = LINK.replace('private_sheet_123456', 'other_sheet_123456')
+        self.connect(payload)
+        self.assertEqual(len(self.status()['leads']), 2)
+        self.provider.rows[0] = [self.provider.rows[0][0]]
+        result = self.post('sync').json
+        self.assertEqual([row['id'] for row in result['leads']], ['0001'])
+        self.assertEqual(len(result['queries']), 1)
+
+    def test_deletion_failure_rolls_back_source_and_dashboard_together(self):
+        before = self.connect()
+        workspace = self.client.get('/api/workspace').json['workspace']
+        self.provider.rows = [[self.provider.rows[0][0]], [self.provider.rows[1][0]]]
+        with patch('shared_workspace.remove_sheet_leads', side_effect=RuntimeError('simulated failure')):
+            self.assertEqual(self.post('sync').status_code, 502)
+        after = self.status()
+        self.assertEqual(after['leads'], before['leads'])
+        self.assertEqual(after['queries'], before['queries'])
+        self.assertEqual(self.client.get('/api/workspace').json['workspace'], workspace)
+
+    def test_legacy_connection_reconciles_previously_imported_rows(self):
+        self.connect()
+        with app.db_conn() as conn:
+            import json
+            row = conn.execute('SELECT settings FROM sheet_connection WHERE id=1').fetchone()
+            settings = json.loads(row['settings']);settings.pop('synced_ids')
+            conn.execute('UPDATE sheet_connection SET settings=? WHERE id=1', (json.dumps(settings),))
+        self.provider.rows = [[self.provider.rows[0][0]], [self.provider.rows[1][0]]]
+        result = self.post('sync').json
+        self.assertEqual(result['leads'], [])
+        self.assertEqual(result['queries'], [])
+
+    def test_add_edit_repeat_and_missing_rows_remove_synced_records(self):
         self.connect()
         self.provider.rows[0].append(['0002', 'Hospital B', '00009', 'New Lead', '2026-10-02', ''])
         self.provider.rows[0][1][1] = 'Hospital A updated'
         first = self.post('sync').json
-        self.assertEqual(first['connection']['report']['counts']['leads'], {'added': 1, 'updated': 1, 'unchanged': 0, 'rejected': 0})
+        self.assertEqual(first['connection']['report']['counts']['leads'], {'added': 1, 'updated': 1, 'removed': 0, 'unchanged': 0, 'rejected': 0})
         second = self.post('sync').json
         self.assertEqual(len(second['leads']), 2)
         self.assertEqual(second['connection']['report']['counts']['leads']['unchanged'], 2)
         self.assertEqual(second['connection']['report']['counts']['queries']['unchanged'], 1)
         self.provider.rows = [[self.provider.rows[0][0]], [self.provider.rows[1][0]]]
         removed = self.post('sync').json
-        self.assertEqual(len(removed['leads']), 2)
-        self.assertEqual(len(removed['queries']), 1)
+        self.assertEqual(len(removed['leads']), 0)
+        self.assertEqual(len(removed['queries']), 0)
+        self.assertEqual(removed['connection']['report']['counts']['leads']['removed'], 2)
+        self.assertEqual(self.client.get('/api/workspace').json['workspace']['values']['hk_v2_leads'], [])
 
     def test_row_errors_reject_duplicates_missing_ids_bad_dates_and_orphans(self):
         self.provider.rows[0] += [

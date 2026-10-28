@@ -53,7 +53,10 @@ class FormResponseTests(unittest.TestCase):
         self.assertEqual(repeated['connection']['report']['counts']['leads']['unchanged'], 2)
         self.assertEqual(repeated['connection']['report']['counts']['queries']['unchanged'], 1)
         self.provider.rows[0] = [COLUMNS]
-        self.assertEqual(len(self.post('sync').json['leads']), 2)
+        removed = self.post('sync').json
+        self.assertEqual(removed['leads'], [])
+        self.assertEqual(removed['queries'], [])
+        self.assertEqual(self.client.get('/api/workspace').json['workspace']['values']['hk_v2_leads'], [])
 
     def test_duplicate_timestamps_missing_values_and_bad_email_rejected(self):
         self.provider.rows[0].append(copy.deepcopy(self.provider.rows[0][1]))

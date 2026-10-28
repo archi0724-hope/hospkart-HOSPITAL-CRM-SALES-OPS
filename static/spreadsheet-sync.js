@@ -184,9 +184,10 @@ function sheetReportHtml(report, preview = false) {
   if (!report) return '';
   const counts = '<div class="sheet-report">' + Object.entries(report.counts).map(([kind, value]) =>
     '<div><strong>' + sheetEscape(kind === 'leads' ? 'Leads' : 'Queries') + '</strong><br>' +
-    ['added', 'updated', 'unchanged', 'rejected'].map(key => value[key] + ' ' + key).join(' · ') + '</div>').join('') + '</div>';
+    ['added', 'updated', 'removed', 'unchanged', 'rejected'].map(key => (value[key] || 0) + ' ' + key).join(' · ') + '</div>').join('') + '</div>';
   const errors = report.errors || [];
-  return counts + (errors.length ? '<details><summary>' + errors.length + ' rejected rows — review issues</summary><p class="mini-help">Showing the first 200 issues. Correct the sheet and sync again.</p><button class="btn small" type="button" onclick="downloadSheetIssues(' + preview + ')">Download all validation issues</button><div class="table-wrap sheet-preview-table"><table class="data-table"><thead><tr><th>Tab</th><th>Row</th><th>ID</th><th>Reason</th></tr></thead><tbody>' + errors.slice(0, 200).map(error => '<tr><td>' + sheetEscape(error.kind) + '</td><td>' + error.row + '</td><td>' + sheetEscape(error.id) + '</td><td>' + sheetEscape(error.reason) + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
+  const warnings = !preview ? (report.warnings || []).map(item => '<p class="mini-help">' + sheetEscape(item.reason) + '</p>').join('') : '';
+  return counts + warnings + (errors.length ? '<details><summary>' + errors.length + ' rejected rows — review issues</summary><p class="mini-help">Showing the first 200 issues. Correct the sheet and sync again.</p><button class="btn small" type="button" onclick="downloadSheetIssues(' + preview + ')">Download all validation issues</button><div class="table-wrap sheet-preview-table"><table class="data-table"><thead><tr><th>Tab</th><th>Row</th><th>ID</th><th>Reason</th></tr></thead><tbody>' + errors.slice(0, 200).map(error => '<tr><td>' + sheetEscape(error.kind) + '</td><td>' + error.row + '</td><td>' + sheetEscape(error.id) + '</td><td>' + sheetEscape(error.reason) + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
 }
 
 function downloadSheetIssues(preview) {

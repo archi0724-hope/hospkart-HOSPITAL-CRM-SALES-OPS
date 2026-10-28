@@ -335,16 +335,41 @@ class SheetSync:
         return {'settings': settings, 'rows': rows, 'errors': errors}
 
     def plan(self, conn, snapshot, apply=False):
+        # Only reconcile rows owned by this connection, never manual CRM entries.
+        settings = snapshot['settings']
+        connection = self.connection(conn)
+        previous = json.loads(connection['settings']) if connection else {}
+        def source_key(value):
+            return (value.get('id'), value.get('mode', 'tabs'), value.get('tabs'))
+        same_source = bool(connection) and source_key(previous) == source_key(settings)
+        owned = previous.get('synced_ids') if same_source else None
+        if owned is None:
+            # Existing deployments predate ownership metadata; their sheet tables
+            # are the imported records for the already-connected source.
+            owned = {kind: [row['id'] for row in conn.execute('SELECT id FROM sheet_' + kind)]
+                     if same_source else [] for kind in FIELDS}
+        incoming_ids = {kind: {item['data']['id'] for item in snapshot['rows'][kind]} for kind in FIELDS}
+        removed = {kind: set(owned.get(kind, [])) - incoming_ids[kind] for kind in FIELDS}
+        warnings = list(snapshot.get('warnings', []))
+        if snapshot['errors']:
+            removed = {kind: set() for kind in FIELDS}
+            warnings.append({'row': '', 'reason': 'Source deletions were postponed because some rows failed validation. Correct the sheet and sync again.'})
+        # Deleting a lead also removes linked queries, even if their source row remains.
+        for row in conn.execute('SELECT id,lead_id FROM sheet_queries'):
+            if row['lead_id'] in removed['leads']:
+                removed['queries'].add(row['id'])
         shared_leads = []
         form_mode = snapshot['settings'].get('mode') == 'form_responses'
         query_lead_ids = {item['data']['lead_id'] for item in snapshot['rows']['queries']}
         existing_shared_ids = {row['id'] for row in shared_workspace.read(conn)['values']['hk_v2_leads']} if form_mode and apply else set()
-        report = {kind: {'added': 0, 'updated': 0, 'unchanged': 0,
+        report = {kind: {'added': 0, 'updated': 0, 'unchanged': 0, 'removed': len(removed[kind]),
                          'rejected': sum(error['kind'] == kind for error in snapshot['errors'])}
                   for kind in FIELDS}
         for kind in FIELDS:
             for item in snapshot['rows'][kind]:
                 incoming = item['data']
+                if kind == 'queries' and incoming['lead_id'] in removed['leads']:
+                    continue
                 existing = conn.execute('SELECT data FROM sheet_' + kind + ' WHERE id=?', (incoming['id'],)).fetchone()
                 old = json.loads(existing['data']) if existing else {}
                 merged = {**old, **incoming}
@@ -370,8 +395,14 @@ class SheetSync:
                     else:
                         conn.execute('INSERT INTO sheet_queries(id,lead_id,data) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET lead_id=excluded.lead_id,data=excluded.data', (merged['id'], merged['lead_id'], json_text(merged)))
         if apply:
+            for kind in ('queries', 'leads'):
+                for identifier in removed[kind]:
+                    conn.execute('DELETE FROM sheet_' + kind + ' WHERE id=?', (identifier,))
+            shared_workspace.remove_sheet_leads(conn, removed['leads'])
             shared_workspace.merge_sheet_leads(conn, shared_leads)
-        return {'counts': report, 'errors': snapshot['errors'], 'warnings': snapshot.get('warnings', [])}
+            settings['synced_ids'] = {kind: sorted((set(owned.get(kind, [])) | incoming_ids[kind]) - removed[kind])
+                                      for kind in FIELDS}
+        return {'counts': report, 'errors': snapshot['errors'], 'warnings': warnings}
 
     def preview(self, body):
         with self.lock:

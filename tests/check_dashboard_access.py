@@ -47,6 +47,14 @@ def check():
                         assert page.locator('#sheetSyncButton').is_enabled()
                         provider.rows[0].append(['0002','Second Hospital','00009','New Lead','2026-10-02',''])
                         page.locator('#sheetSyncButton').click();page.wait_for_function("!sheetBusy&&sectionRecords.leads.some(row=>row.id==='0002')")
+                        before_count=int(page.locator('#kpiClients').inner_text())
+                        provider.rows[0].pop(1)
+                        page.locator('#sheetSyncButton').click()
+                        page.wait_for_function("!sheetBusy&&!sectionRecords.leads.some(row=>row.id==='0001')")
+                        assert int(page.locator('#kpiClients').inner_text())==before_count-1
+                        assert page.locator('#leadQueryCount').inner_text()=='0'
+                        assert page.locator('#leadTotal').inner_text()=='1'
+                        assert page.evaluate("clients.some(row=>row.name==='No-login Hospital')")
                         workbook=Path(temp)/'invoices.xlsx';make_workbook(workbook)
                         page.set_input_files('#excelImportFile',str(workbook));page.wait_for_function('invoiceWorkbook?.sheets.length===6&&!sharedWorkspaceSaving')
                         page.evaluate("navigate('data')")
@@ -62,7 +70,7 @@ def check():
                         assert not context.cookies()
                         page.goto(address+'admin');page.wait_for_url(address)
                         reports.append({'browser':channel,'no_login':True,'record_save':True,'spreadsheet_import_sync':True,
-                                        'workbook_upload':True,'confirmed_removal':True,'activity_history':True,'javascript_errors':errors})
+                                        'source_deletion_and_counts':True,'workbook_upload':True,'confirmed_removal':True,'activity_history':True,'javascript_errors':errors})
                     finally:
                         context.close();browser.close();server.close()
     print(json.dumps(reports,indent=2))
