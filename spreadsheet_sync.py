@@ -361,7 +361,7 @@ class SheetSync:
         shared_leads = []
         form_mode = snapshot['settings'].get('mode') == 'form_responses'
         query_lead_ids = {item['data']['lead_id'] for item in snapshot['rows']['queries']}
-        existing_shared_ids = {row['id'] for row in shared_workspace.read(conn)['values']['hk_v2_leads']} if form_mode and apply else set()
+        existing_shared_ids = {row['id'] for row in shared_workspace.read_sheet_leads(conn)} if form_mode and apply else set()
         report = {kind: {'added': 0, 'updated': 0, 'unchanged': 0, 'removed': len(removed[kind]),
                          'rejected': sum(error['kind'] == kind for error in snapshot['errors'])}
                   for kind in FIELDS}

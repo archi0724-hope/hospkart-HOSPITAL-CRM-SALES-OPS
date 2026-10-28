@@ -47,6 +47,15 @@ def read(conn):
             'values': {**empty_values(), **json.loads(row['data'])}, 'updated_at': row['updated_at']}
 
 
+def read_sheet_leads(conn):
+    """Project just the lead array; never transfer workbook/backups for sync checks."""
+    if getattr(conn, 'backend', 'sqlite') == 'postgresql':
+        row = conn.execute("SELECT data::json->>'hk_v2_leads' AS leads FROM crm_workspace WHERE id=1").fetchone()
+    else:
+        row = conn.execute("SELECT json_extract(data,'$.hk_v2_leads') AS leads FROM crm_workspace WHERE id=1").fetchone()
+    return json.loads(row['leads']) if row and row['leads'] else []
+
+
 def record_array(value, named=False):
     return isinstance(value, list) and all(isinstance(row, dict) and
         (not named or isinstance(row.get('id'), str) and isinstance(row.get('name'), str)) for row in value)
@@ -156,8 +165,8 @@ def merge_sheet_leads(conn, incoming):
     """Called inside the sheet import transaction so every browser sees one result."""
     if not incoming:
         return
-    current = read(conn)
-    leads = current['values']['hk_v2_leads']
+    original = read_sheet_leads(conn)
+    leads = list(original)
     positions = {row['id']: index for index, row in enumerate(leads)}
     defaults = dict(type='New Prospect', city='', district='', state='', contact='', mobile='', email='',
                     requirement='', product='', quote=0, order=0, last='', next='', executive='Unassigned',
@@ -169,8 +178,8 @@ def merge_sheet_leads(conn, incoming):
             leads.append({**defaults, **row})
         else:
             leads[index] = {**leads[index], **row}
-    # read again because current['values'] was modified to build the next lead list.
-    write(conn, read(conn), {'hk_v2_leads': leads})
+    if leads != original:
+        write(conn, read(conn), {'hk_v2_leads': leads})
 
 
 def register(app, db_conn):

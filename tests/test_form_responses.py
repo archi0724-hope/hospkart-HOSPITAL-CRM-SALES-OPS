@@ -103,6 +103,14 @@ class FormResponseTests(unittest.TestCase):
         self.assertEqual(after['leads'], before['leads'])
         self.assertEqual(after['connection']['last_success'], before['connection']['last_success'])
 
+    def test_unchanged_form_sync_avoids_full_snapshot_reads(self):
+        from unittest.mock import patch
+        self.connect(self.payload)
+        with patch('shared_workspace.read', side_effect=AssertionError('Full snapshot read on unchanged form sync')):
+            response = self.post('sync')
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(response.json['connection']['report']['counts']['leads']['unchanged'], 2)
+
     def test_form_sync_preserves_crm_pipeline_stage(self):
         self.connect(self.payload)
         workspace = self.client.get('/api/workspace').json['workspace']

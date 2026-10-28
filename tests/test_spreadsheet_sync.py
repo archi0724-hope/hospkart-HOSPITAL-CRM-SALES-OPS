@@ -152,6 +152,16 @@ class SpreadsheetTests(unittest.TestCase):
         self.assertEqual(imported['queries'][0]['lead_id'], '0001')
         self.assertEqual(self.post('import', {'token': preview['token']}).status_code, 409)
 
+    def test_unchanged_sync_does_not_download_the_full_crm_snapshot(self):
+        self.connect()
+        before = self.client.get('/api/workspace').json['workspace']['revision']
+        # Workbook/backups live in this snapshot; unchanged imports must not read it.
+        with patch('shared_workspace.read', side_effect=AssertionError('Full snapshot read on unchanged sync')):
+            response = self.post('sync')
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(response.json['connection']['report']['counts']['leads']['unchanged'], 1)
+        self.assertEqual(self.client.get('/api/workspace').json['workspace']['revision'], before)
+
     def test_deletion_preview_is_read_only_and_query_deletion_keeps_lead(self):
         self.connect()
         self.provider.rows[1] = [self.provider.rows[1][0]]
