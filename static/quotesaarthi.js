@@ -10,8 +10,9 @@ async function refreshQuoteSaarthiKnowledge() {
     const response=await fetch('/api/quotesaarthi/knowledge',{cache:'no-store',signal:AbortSignal.timeout(20000)});
     const result=await response.json();
     if(!response.ok||!result.ok)throw new Error(result.error||'CRM knowledge unavailable.');
+    window.dispatchEvent(new CustomEvent('quotesaarthi:knowledge',{detail:result}));
     if(status)status.textContent='Live CRM · '+result.workspace_records+' records · revision '+result.revision+' · '+(result.checks.passed?'data checks passed':result.checks.issues.length+' data issues to review');
-  }catch(error){if(status)status.textContent='Live CRM unavailable. Retry the knowledge check.';}
+  }catch(error){if(status)status.textContent='Live CRM unavailable. Retry the knowledge check.';window.dispatchEvent(new Event('quotesaarthi:unavailable'));}
   finally{quoteKnowledgeLoading=false;}
 }
 try{quoteSaarthiSession=sessionStorage.getItem('hk_quotesaarthi_session');}catch(_){}

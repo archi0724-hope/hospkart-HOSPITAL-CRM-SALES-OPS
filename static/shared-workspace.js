@@ -105,6 +105,7 @@ async function acceptWorkspaceState(state, external = false) {
     try {await databaseTransaction({hk_shared_connection_v1: window.location.origin});} catch (_) {}
   }
   workspaceStatus('Shared database connected · All users on this CRM share saved records · Revision ' + state.revision);
+  window.dispatchEvent(new CustomEvent('crm:workspace-saved',{detail:{revision:state.revision}}));
   return true;
 }
 

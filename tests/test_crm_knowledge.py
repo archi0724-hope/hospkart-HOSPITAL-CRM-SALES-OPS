@@ -40,6 +40,22 @@ class CRMKnowledgeTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.json)
         return response.json
 
+    def test_status_poll_reuses_unchanged_analysis_but_checks_revisions(self):
+        with patch('quotesaarthi.crm.build_knowledge', wraps=build_knowledge) as build:
+            first = self.client.get('/api/quotesaarthi/knowledge')
+            second = self.client.get('/api/quotesaarthi/knowledge')
+            self.assertEqual(first.status_code, 200)
+            self.assertEqual(second.json['workspace_records'], first.json['workspace_records'])
+            self.assertEqual(build.call_count, 1)
+            self.save({'hk_v2_clients': []})
+            third = self.client.get('/api/quotesaarthi/knowledge')
+            self.assertEqual(third.status_code, 200)
+            self.assertEqual(build.call_count, 2)
+            self.assertNotEqual(third.json['revision'], first.json['revision'])
+        import sqlite3
+        with patch('app.db_conn', side_effect=sqlite3.DatabaseError('offline')):
+            self.assertEqual(self.client.get('/api/quotesaarthi/knowledge').status_code, 503)
+
     def test_counts_match_saved_records_and_new_edits_are_immediate(self):
         initial=self.chat('Summarize CRM dashboard',{'kpis':{'workspace_records':99999}})
         self.assertIn('4 workspace records',initial['reply']);self.assertNotIn('99999',initial['reply'])

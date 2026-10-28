@@ -940,14 +940,27 @@ def quotesaarthi_chat():
         return jsonify(ok=False,error='QuoteSaarthi could not complete this request. Please try again.'),503
 
 
+crm_public_status_lock = RLock()
+crm_public_status_cache = {}
+
+
 @app.get('/api/quotesaarthi/knowledge')
 def quotesaarthi_knowledge_status():
     from quotesaarthi import crm as crm_knowledge
     try:
-        with db_conn() as conn:
+        with crm_public_status_lock, db_conn() as conn:
             conn.execute('BEGIN')
-            knowledge = crm_knowledge.build_knowledge(conn)
-        response = jsonify(ok=True, **crm_knowledge.public_status(knowledge))
+            revision = conn.execute('SELECT revision FROM crm_workspace WHERE id=1').fetchone()[0]
+            sheet = conn.execute('SELECT revision,last_success,last_error FROM sheet_connection WHERE id=1').fetchone()
+            key = (str(DB_PATH), DATABASE_URL, datetime.now(IST).date().isoformat(), revision,
+                   tuple(sheet[name] for name in ('revision','last_success','last_error')) if sheet else None)
+            if crm_public_status_cache.get('key') != key:
+                knowledge = crm_knowledge.build_knowledge(conn)
+                crm_public_status_cache.update(key=key, value=crm_knowledge.public_status(knowledge))
+            status = dict(crm_public_status_cache['value'])
+            status['checked_at'] = datetime.now(IST).isoformat(timespec='seconds')
+            status['checks'] = {**status['checks'], 'checked_at': status['checked_at']}
+        response = jsonify(ok=True, **status)
         response.headers['Cache-Control'] = 'no-store, private'
         return response
     except Exception:

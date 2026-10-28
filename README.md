@@ -432,6 +432,15 @@ The default is `ADMIN_ACCESS_REQUIRED=false`. The server owner can explicitly re
 Verification: `python -m unittest discover -s tests`, `python tests/check_dashboard_access.py`, and `python tests/check_admin_access.py`. Checks use isolated temporary databases and synthetic records.
 
 
+### QuoteSaarthi intelligence dashboard
+
+The navy/teal dashboard retains the existing workspaces, filters, imports, exports and shared data controls. **Today’s focus** reads the server’s saved CRM snapshot for overdue follow-ups, follow-ups due today and unresolved complaints. These counts cover all saved workspaces independently of table filters, include closed records with follow-up dates, and show the checked time in IST and source revision. Record copies continue to count separately. Failed knowledge reads clear insight values instead of presenting a stale snapshot as current.
+
+Use **Search workspace** or **Ctrl/Cmd+K** to navigate existing pages or ask QuoteSaarthi a question. The assistant brief and focus cards open the existing read-only conversation; they do not save records or send messages. Insights refresh after shared workspace revisions, while the dashboard is visible every minute, and with **Refresh insights**. QuoteSaarthi uses the latest saved records and existing deterministic CRM answers; this does not train a model or promise autonomous self-improvement.
+
+Run `python tests/check_intelligence_dashboard.py` for Chrome/Edge coverage of source counts, filter independence, safe search, keyboard dismissal, assistant briefs, revision refresh, unavailable states and mobile layout. Screenshots use synthetic data and are saved under the ignored `data/` image paths for local review.
+
+
 ### Connected spreadsheet display and counts
 
 Once connected, Leads & Queries shows the saved connection status, form link and records. Spreadsheet setup lives in an **Manage spreadsheet** dialog. Sync details are collapsed by default. The lead/query navigation badge uses the lead workspace headcount; the query summary uses saved query records, including linked form queries after their lead moves to another pipeline stage. Imported form responses contribute one lead each to dashboard headcount; their linked query is displayed separately and does not add a second lead. Repeated sync keeps stable record IDs and does not inflate totals.

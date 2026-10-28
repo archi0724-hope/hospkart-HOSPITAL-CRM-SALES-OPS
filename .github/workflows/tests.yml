@@ -64,6 +64,9 @@ jobs:
       - run: python tests/check_offline_dashboard.py
         env:
           BROWSER_CHANNELS: chromium
+      - run: python tests/check_intelligence_dashboard.py
+        env:
+          BROWSER_CHANNELS: chromium
       - run: python tests/check_connected_sheet_dashboard.py
         env:
           BROWSER_CHANNELS: chromium

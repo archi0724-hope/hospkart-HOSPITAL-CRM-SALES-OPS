@@ -1,0 +1,6 @@
+<dialog id="workspaceCommandDialog" class="workspace-command-dialog" aria-labelledby="workspaceCommandTitle">
+  <div class="workspace-command-head"><div><span class="intelligence-eyebrow">WORKSPACE COMMANDS</span><h2 id="workspaceCommandTitle">Where would you like to go?</h2></div><button type="button" class="close" aria-label="Close workspace commands" onclick="document.getElementById('workspaceCommandDialog').close()">✕</button></div>
+  <label class="workspace-command-search" for="workspaceCommandInput"><span aria-hidden="true">⌕</span><input id="workspaceCommandInput" type="search" placeholder="Find a page or ask QuoteSaarthi…" autocomplete="off" oninput="renderWorkspaceCommands()" onkeydown="workspaceCommandKeydown(event)"></label>
+  <div id="workspaceCommandResults" class="workspace-command-results" aria-live="polite"></div>
+  <div class="workspace-command-footer"><span>Navigate your CRM. Ask about saved data.</span><kbd>Esc to close</kbd></div>
+</dialog>

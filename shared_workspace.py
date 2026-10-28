@@ -41,8 +41,12 @@ def init_schema(conn):
                  (json.dumps(empty_values()),))
 
 
-def read(conn):
-    row = conn.execute('SELECT * FROM crm_workspace WHERE id=1').fetchone()
+def read(conn, *, omit_backups=False):
+    if omit_backups:
+        value = "(data::jsonb - 'hk_v2_backups')::text" if getattr(conn, 'backend', 'sqlite') == 'postgresql' else "json_remove(data,'$.hk_v2_backups')"
+        row = conn.execute('SELECT revision,initialized,updated_at,' + value + ' AS data FROM crm_workspace WHERE id=1').fetchone()
+    else:
+        row = conn.execute('SELECT * FROM crm_workspace WHERE id=1').fetchone()
     return {'revision': row['revision'], 'initialized': bool(row['initialized']),
             'values': {**empty_values(), **json.loads(row['data'])}, 'updated_at': row['updated_at']}
 

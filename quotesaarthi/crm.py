@@ -28,7 +28,7 @@ def record_summary(row, scope):
 
 def build_knowledge(conn, now=None):
     # One SQLite read transaction: counts and related queries describe one saved snapshot.
-    workspace = shared_workspace.read(conn)
+    workspace = shared_workspace.read(conn, omit_backups=True)
     values = workspace['values']
     today = (now or datetime.now(ZoneInfo('Asia/Kolkata'))).date().isoformat()
     records, workspaces, issues = [], {}, []
@@ -117,6 +117,7 @@ def build_knowledge(conn, now=None):
 def public_status(knowledge):
     return {key: knowledge[key] for key in ('source', 'revision', 'updated_at', 'checked_at', 'scope', 'workspace_records', 'workspaces', 'checks')} | {
         'queries': len(knowledge['queries']), 'complaints': len(knowledge['complaints']),
+        'followup_counts': knowledge['followup_counts'], 'complaint_status_counts': knowledge['complaint_status_counts'],
         'automatic_refresh': 'Latest saved database snapshot on every CRM question; no model retraining required.'}
 
 

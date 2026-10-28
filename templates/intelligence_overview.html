@@ -1,0 +1,24 @@
+<section class="intelligence-hero" aria-labelledby="intelligenceTitle">
+  <div class="intelligence-hero-copy">
+    <div class="intelligence-eyebrow"><span class="intelligence-spark" aria-hidden="true">✦</span> QUOTESAARTHI / INTELLIGENCE WORKSPACE</div>
+    <h2 id="intelligenceTitle">A clearer view.<br><span>A smarter next move.</span></h2>
+    <p>Your hospitals, opportunities and follow-ups. One connected workspace, with QuoteSaarthi by your side.</p>
+    <div class="intelligence-hero-actions">
+      <button type="button" class="btn intelligence-primary" onclick="askIntelligence('Summarize the current CRM dashboard and tell me which follow-ups need attention.')"><span aria-hidden="true">✦</span> Ask for my CRM brief <span aria-hidden="true">↗</span></button>
+      <button type="button" class="intelligence-quiet" onclick="openWorkspaceCommands()">Explore your workspace <span aria-hidden="true">→</span></button>
+    </div>
+    <div class="intelligence-source"><span id="intelligenceSourceDot" class="intelligence-status-dot"></span><span id="intelligenceSource">Checking saved CRM knowledge…</span></div>
+  </div>
+  <div class="intelligence-orbit" aria-hidden="true"><div class="orbit-grid"></div><div class="orbit-ring orbit-ring-outer"></div><div class="orbit-ring orbit-ring-inner"></div><div class="orbit-core"><span>✦</span><small>QuoteSaarthi</small></div><span class="orbit-label orbit-label-one">CRM context</span><span class="orbit-label orbit-label-two">Follow-ups</span><span class="orbit-label orbit-label-three">Quotations</span><span class="orbit-point orbit-point-one"></span><span class="orbit-point orbit-point-two"></span></div>
+</section>
+<section class="intelligence-overview" aria-labelledby="intelligenceFocusTitle">
+  <div class="intelligence-section-heading"><div><div class="intelligence-eyebrow">YOUR OPERATIONAL PULSE</div><h3 id="intelligenceFocusTitle">Today’s focus</h3></div><button class="intelligence-refresh" type="button" id="intelligenceRefresh" onclick="refreshIntelligence(true)"><span aria-hidden="true">↻</span> Refresh insights</button></div>
+  <div class="intelligence-focus-grid">
+    <button type="button" class="intelligence-focus-card" onclick="askIntelligence('Show overdue follow-ups')"><div class="intelligence-card-top"><span class="intelligence-icon intelligence-icon-amber" aria-hidden="true">↗</span><span class="intelligence-card-label">Needs attention</span><span class="intelligence-card-arrow" aria-hidden="true">↗</span></div><div class="intelligence-focus-value" id="intelligenceOverdue">—</div><h4>Overdue follow-ups</h4><p>Review the saved follow-up queue.</p></button>
+    <button type="button" class="intelligence-focus-card" onclick="askIntelligence('Show today follow-ups')"><div class="intelligence-card-top"><span class="intelligence-icon intelligence-icon-teal" aria-hidden="true">◷</span><span class="intelligence-card-label">Plan your day</span><span class="intelligence-card-arrow" aria-hidden="true">↗</span></div><div class="intelligence-focus-value" id="intelligenceToday">—</div><h4>Follow-ups due today</h4><p>Your next conversations, in one place.</p></button>
+    <button type="button" class="intelligence-focus-card" onclick="askIntelligence('Show pending complaints')"><div class="intelligence-card-top"><span class="intelligence-icon intelligence-icon-blue" aria-hidden="true">◇</span><span class="intelligence-card-label">Customer care</span><span class="intelligence-card-arrow" aria-hidden="true">↗</span></div><div class="intelligence-focus-value" id="intelligenceComplaints">—</div><h4>Open complaints</h4><p>Keep service resolutions moving.</p></button>
+  </div>
+  <div class="intelligence-brief"><span class="intelligence-brief-symbol" aria-hidden="true">✦</span><div><strong>QuoteSaarthi focus brief</strong><p id="intelligenceBrief" role="status">Insights appear after the saved CRM snapshot is checked.</p></div><button type="button" class="intelligence-quiet" onclick="askIntelligence('Test CRM knowledge')">Review data checks <span aria-hidden="true">→</span></button></div>
+  <p class="intelligence-scope" id="intelligenceScope">All saved workspaces · independent of the filters below · follow-ups include closed records with saved dates.</p>
+</section>
+<div class="intelligence-section-heading intelligence-records-heading"><div><div class="intelligence-eyebrow">EXPLORE YOUR PIPELINE</div><h3>Workspace overview</h3></div><span class="intelligence-section-note">Your existing filters and workflows</span></div>
