@@ -28,6 +28,7 @@ import spreadsheet_sync
 import drive_import
 import database
 import shared_workspace
+from database_readiness import DatabaseReadiness
 from request_security import crm_request_origin_allowed
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -1117,16 +1118,38 @@ def receive_webhook():
     return jsonify({"ok": True, "processed": len(inbound)})
 
 
+database_readiness = DatabaseReadiness(init_db, defer_errors=bool(DATABASE_URL))
+
+
+@app.before_request
+def wait_for_database_initialization():
+    if request.path.startswith('/static/') or database_readiness.ensure():
+        return
+    headers = {'Retry-After': '60', 'Cache-Control': 'no-store, private'}
+    if request.path.startswith('/api/'):
+        return jsonify(ok=False, database_connected=False,
+                       error='The shared database is temporarily unavailable. No data was changed. Please retry later.'), 503, headers
+    return render_template('database_unavailable.html'), 503, headers
+
+
+def when_database_ready(function):
+    @wraps(function)
+    def run(*args, **kwargs):
+        if database_readiness.ensure():
+            return function(*args, **kwargs)
+    return run
+
+
 admin_access.register(app, db_conn, lambda: admin_password_hash())
 
 sheet_sync = spreadsheet_sync.register(app, db_conn, now_iso, require_spreadsheet_admin)
 drive_import_provider = drive_import.register(app, db_conn, now_iso, lambda: {'engine': 'postgresql' if DATABASE_URL else 'sqlite', 'durable': bool(DATABASE_URL)})
 shared_workspace.register(app, db_conn)
-init_db()
+database_readiness.ensure()
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
-scheduler.add_job(process_due_messages, "interval", seconds=60, id="whatsapp_followups", replace_existing=True)
-scheduler.add_job(process_due_emails, "interval", seconds=15, id="email_followups", replace_existing=True)
-scheduler.add_job(admin_access.system_task(sheet_sync.auto_sync), "interval", seconds=60, id="spreadsheet_sync", replace_existing=True, max_instances=1, coalesce=True)
+scheduler.add_job(when_database_ready(process_due_messages), "interval", seconds=60, id="whatsapp_followups", replace_existing=True)
+scheduler.add_job(when_database_ready(process_due_emails), "interval", seconds=15, id="email_followups", replace_existing=True)
+scheduler.add_job(when_database_ready(admin_access.system_task(sheet_sync.auto_sync)), "interval", seconds=60, id="spreadsheet_sync", replace_existing=True, max_instances=1, coalesce=True)
 if env_bool("SCHEDULER_ENABLED", True):
     scheduler.start()
 

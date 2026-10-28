@@ -437,3 +437,7 @@ Verification: `python -m unittest discover -s tests`, `python tests/check_dashbo
 Once connected, Leads & Queries shows the saved connection status, form link and records. Spreadsheet setup lives in an **Manage spreadsheet** dialog. Sync details are collapsed by default. The lead/query navigation badge uses the lead workspace headcount; the query summary uses saved query records, including linked form queries after their lead moves to another pipeline stage. Imported form responses contribute one lead each to dashboard headcount; their linked query is displayed separately and does not add a second lead. Repeated sync keeps stable record IDs and does not inflate totals.
 
 Verification: `python tests/check_connected_sheet_dashboard.py` checks connected display, spreadsheet management, saved query counts, headcount updates and repeat sync in Chrome/Edge with synthetic records.
+
+### Database startup recovery
+
+If configured PostgreSQL is unavailable during startup, the web process serves a maintenance page and returns HTTP 503 for data APIs. Static assets remain available. Database initialization is retried at most once per minute, and background jobs wait until it succeeds. Existing records stay in the configured database; no SQLite fallback is created. This lets a TCP-health-checked Render service start during an outage, but data remains unavailable until the database/account limit is restored. `/api/health` continues to return 503 while initialization is pending.
