@@ -128,8 +128,12 @@ def write(conn, current, values, *, initialized=True, preserve_backups=False):
             data_sql = ("jsonb_set(?::jsonb,'{hk_v2_backups}',COALESCE(data::jsonb->'hk_v2_backups','[]'::jsonb))::text"
                         if getattr(conn, 'backend', 'sqlite') == 'postgresql' else
                         "json_set(?, '$.hk_v2_backups', json(COALESCE(json_extract(data,'$.hk_v2_backups'),'[]')))")
-        conn.execute('UPDATE crm_workspace SET data='+data_sql+',revision=revision+1,initialized=?,updated_at=? WHERE id=1',
-                     (json.dumps(merged, ensure_ascii=False, allow_nan=False), int(initialized), now))
+        statement = 'UPDATE crm_workspace SET data='+data_sql+',revision=revision+1,initialized=?,updated_at=? WHERE id=1'
+        parameters = (json.dumps(merged, ensure_ascii=False, allow_nan=False), int(initialized), now)
+        if hasattr(conn, 'execute_workspace_update'):
+            conn.execute_workspace_update(statement, parameters, current['values'], merged)
+        else:
+            conn.execute(statement, parameters)
         return {**current, 'values': merged, 'revision': current['revision'] + 1,
                 'initialized': initialized, 'updated_at': now}
     return current

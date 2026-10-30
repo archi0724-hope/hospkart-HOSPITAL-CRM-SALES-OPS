@@ -98,6 +98,21 @@ class AdminAccessTests(unittest.TestCase):
         self.assertTrue(any(event['action'] == 'sign-in' for event in self.activity()))
         self.assertEqual(self.viewer.get('/api/workspace').json['workspace']['values']['hk_v2_clients'], [])
 
+    def test_compact_edit_retains_named_audit_and_does_not_log_backup_removal(self):
+        self.login(); self.save()
+        checkpoint = {'id': 'historic', 'clients': [{'id': 'old', 'name': 'Private historic hospital'}], 'calls': [], 'feedback': [], 'invoiceWorkbook': None}
+        response = self.admin.post('/api/workspace', json={'revision': 1, 'values': {'hk_v2_backups': [checkpoint]}}, headers=HEADERS)
+        revision = response.json['workspace']['revision']
+        response = self.admin.post('/api/workspace', json={'revision': revision, 'response': 'changes', 'values': {'hk_v2_clients': [{'id': 'H-1', 'name': 'Private updated hospital'}]}}, headers=HEADERS)
+        self.assertEqual(response.status_code, 200)
+        event = next(event for event in self.activity() if event['action'] == 'data change')
+        self.assertEqual(event['actor'], 'alice')
+        changes = event['details']['operations'][0]['changes']
+        self.assertEqual(changes['hk_v2_clients']['edited'], 1)
+        self.assertNotIn('hk_v2_backups', changes)
+        self.assertNotIn('Private updated hospital', json.dumps(event))
+        self.assertEqual(self.viewer.get('/api/workspace').json['workspace']['values']['hk_v2_backups'], [checkpoint])
+
     def test_audit_failure_rolls_back_data_and_noop_does_not_log(self):
         self.login()
         with patch.object(admin_access, 'add_event', side_effect=app.sqlite3.DatabaseError('audit unavailable')):

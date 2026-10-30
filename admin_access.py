@@ -90,6 +90,14 @@ class AuditedConnection:
     def __getattr__(self, name):
         return getattr(self.conn, name)
 
+    def execute_workspace_update(self, statement, parameters, before, after):
+        """Log the locked workspace snapshots already held by the save routine."""
+        cursor = self.conn.execute(statement, parameters)
+        if cursor.rowcount > 0:
+            self.events.append(('change', {'table': 'crm_workspace', 'rows': cursor.rowcount,
+                                          'changes': workspace_changes(before, after)}))
+        return cursor
+
     def execute(self, statement, parameters=None):
         match = re.match(r'\s*(INSERT(?:\s+OR\s+\w+)?\s+INTO|UPDATE|DELETE\s+FROM)\s+(\w+)', statement, re.I)
         table = match[2].lower() if match else None
