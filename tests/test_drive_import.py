@@ -34,6 +34,20 @@ class DriveImportTests(unittest.TestCase):
         self.assertEqual(state['links'][0]['link'],LINK)
         self.assertEqual(self.client.get('/api/workspace').json['workspace']['values']['hk_v2_clients'],[])
 
+    def test_folder_link_is_shared_without_importing_or_downloading(self):
+        response = self.post('save',{'link':'https://drive.google.com/drive/folders/source_folder_123456?usp=drive_link','label':'CRM source folder','target':'folder'})
+        self.assertEqual(response.status_code,200,response.json)
+        item = response.json['links'][0]
+        self.assertEqual(item['target'],'folder')
+        self.assertEqual(item['link'],'https://drive.google.com/drive/folders/source_folder_123456')
+        self.assertEqual(self.peer.get('/api/drive-import').json['links'][0]['id'],item['id'])
+        self.assertEqual(self.post('download',{'id':item['id']}).status_code,400)
+        self.assertEqual(self.client.get('/api/workspace').json['workspace']['values']['hk_v2_clients'],[])
+
+    def test_folder_reference_does_not_allow_non_google_or_file_mismatch(self):
+        for link in ('https://drive.google.com.evil.test/drive/folders/source_folder_123456','http://drive.google.com/drive/folders/source_folder_123456',LINK):
+            self.assertEqual(self.post('save',{'link':link,'label':'Folder','target':'folder'}).status_code,400)
+
     def test_invalid_links_targets_and_labels_never_save(self):
         for changes in [{'link':'http://localhost/private'},{'link':'https://docs.google.com.evil.test/spreadsheets/d/test_private_workbook_123456'},
                         {'link':'javascript:alert(1)'},{'target':[]},{'target':'credentials'},{'label':''},{'label':'x'*121}]:

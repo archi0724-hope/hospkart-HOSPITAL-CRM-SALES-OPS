@@ -10,9 +10,21 @@ from request_security import crm_request_origin_allowed
 from spreadsheet_sync import GoogleSheets, SheetError, parse_link
 
 TARGETS = {'clients': 'Hospitals & Clients', 'rghs': 'RGHS Data', 'served': 'Already Served',
-           'doctors': 'Doctors', 'potential': 'Potential Leads', 'leads': 'Leads & Queries'}
+           'doctors': 'Doctors', 'potential': 'Potential Leads', 'leads': 'Leads & Queries', 'folder': 'CRM source folder'}
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 MAX_BYTES = 16 * 1024 * 1024
+
+
+def parse_drive_reference(link):
+    if not isinstance(link, str) or len(link) > 2048:
+        raise SheetError('Enter a Google Drive folder, workbook or Sheets link.')
+    try:
+        url = urlparse(link.strip())
+        valid = url.scheme == 'https' and url.hostname == 'drive.google.com' and not url.username and not url.password and url.port in (None,443)
+        folder = re.fullmatch(r'/drive/(?:u/\d+/)?folders/([A-Za-z0-9_-]{10,200})/?',url.path) if valid else None
+    except ValueError:
+        raise SheetError('Invalid Google Drive link.') from None
+    return (folder[1],True) if folder else (parse_link(link),False)
 
 
 def init_schema(conn):
@@ -116,12 +128,14 @@ def register(app, db_conn, now_iso, storage_info=None):
 
     @routes.post('/save')
     def save():
-        data = body(); file_id = parse_link(data.get('link'))
+        data = body(); file_id, folder = parse_drive_reference(data.get('link'))
         target, label = data.get('target', 'clients'), data.get('label', '')
         if not isinstance(target, str) or target not in TARGETS: raise SheetError('Choose a valid CRM import section.')
         if not isinstance(label, str) or not label.strip() or len(label) > 120:
             raise SheetError('Enter a link label of 1–120 characters.')
-        link = 'https://docs.google.com/spreadsheets/d/' + file_id + '/edit' if '/spreadsheets/' in data['link'] else 'https://drive.google.com/file/d/' + file_id + '/view'
+        if folder: target = 'folder'
+        elif target == 'folder': raise SheetError('Choose a Drive folder for the folder destination.')
+        link = 'https://drive.google.com/drive/folders/' + file_id if folder else 'https://docs.google.com/spreadsheets/d/' + file_id + '/edit' if '/spreadsheets/' in data['link'] else 'https://drive.google.com/file/d/' + file_id + '/view'
         resource_key = parse_qs(urlparse(data['link']).query).get('resourcekey', [''])[0]
         if resource_key and re.fullmatch(r'[A-Za-z0-9_-]{1,200}', resource_key):
             link += '?' + urlencode({'resourcekey': resource_key})
@@ -143,8 +157,9 @@ def register(app, db_conn, now_iso, storage_info=None):
     def download():
         data = body(); identifier = data.get('id')
         if not isinstance(identifier, str): raise SheetError('Choose a saved link.')
-        with db_conn() as conn: row = conn.execute('SELECT file_id FROM shared_drive_links WHERE id=?', (identifier,)).fetchone()
+        with db_conn() as conn: row = conn.execute('SELECT file_id,target FROM shared_drive_links WHERE id=?', (identifier,)).fetchone()
         if not row: raise SheetError('This shared link was removed. Refresh the list.', 404)
+        if row['target'] == 'folder': raise SheetError('Open the folder and choose an Excel or Sheets file to import.')
         if data.get('saved_copy') is True:
             with db_conn() as conn: copy = conn.execute('SELECT filename,mime,content FROM drive_workbook_copies WHERE file_id=?', (row['file_id'],)).fetchone()
             if not copy: raise SheetError('No saved workbook copy is available. Attach an Excel copy or configure Google access.', 404)
@@ -155,8 +170,9 @@ def register(app, db_conn, now_iso, storage_info=None):
     @routes.post('/save-copy')
     def save_copy():
         identifier = request.form.get('id')
-        with db_conn() as conn: row = conn.execute('SELECT file_id FROM shared_drive_links WHERE id=?', (identifier,)).fetchone()
+        with db_conn() as conn: row = conn.execute('SELECT file_id,target FROM shared_drive_links WHERE id=?', (identifier,)).fetchone()
         if not row: raise SheetError('Choose a saved Drive link before attaching its Excel copy.', 404)
+        if row['target'] == 'folder': raise SheetError('Attach copies to workbook links, not folders.')
         file = request.files.get('file')
         if not file or not file.filename: raise SheetError('Choose the downloaded Excel workbook for this Drive link.')
         name = re.sub(r'[\x00-\x1f\x7f/\\]', '_', file.filename)[:180]

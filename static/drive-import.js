@@ -45,14 +45,14 @@ function renderDriveImportLinks(){
   const root=document.getElementById('driveImportRows');root.replaceChildren();
   for(const item of sharedDriveLinks){
     const row=document.createElement('tr'),name=document.createElement('td'),target=document.createElement('td'),actions=document.createElement('td');
-    name.textContent=item.label;target.textContent=driveTargetLabels[item.target]||item.target;
+    name.textContent=item.label;target.textContent=item.target==='folder'?'CRM source folder':driveTargetLabels[item.target]||item.target;
     if(item.copy_saved_at){const note=document.createElement('div');note.className='mini-help';note.textContent='Saved copy: '+new Date(item.copy_saved_at).toLocaleString();name.append(note);}
-    const open=document.createElement('a');open.className='btn small';open.textContent='Open Drive file';open.href=item.link;open.target='_blank';open.rel='noopener noreferrer';actions.append(open);
+    const open=document.createElement('a');open.className='btn small';open.textContent=item.target==='folder'?'Open Drive folder':'Open Drive file';open.href=item.link;open.target='_blank';open.rel='noopener noreferrer';actions.append(open);
     const action=(label,callback)=>{const button=document.createElement('button');button.type='button';button.className='btn small';button.textContent=label;button.disabled=driveImportBusy;button.addEventListener('click',callback);actions.append(' ',button);};
     action('Copy Drive link',()=>copyDriveText(item.link));
-    action(item.target==='leads'?'Connect for sync':'Preview / import',()=>importSharedDriveLink(item));
-    if(item.target!=='leads'&&item.copy_saved_at)action('Import saved copy',()=>importSharedDriveLink(item,true));
-    if(item.target!=='leads')action('Attach workbook copy',()=>chooseDriveWorkbookCopy(item));
+    if(item.target!=='folder')action(item.target==='leads'?'Connect for sync':'Preview / import',()=>importSharedDriveLink(item));
+    if(item.target!=='folder'&&item.target!=='leads'&&item.copy_saved_at)action('Import saved copy',()=>importSharedDriveLink(item,true));
+    if(item.target!=='folder'&&item.target!=='leads')action('Attach workbook copy',()=>chooseDriveWorkbookCopy(item));
     action('Remove link',()=>removeDriveImportLink(item));
     row.append(name,target,actions);root.append(row);
   }
