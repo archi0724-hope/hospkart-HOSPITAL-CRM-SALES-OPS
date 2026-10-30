@@ -3,13 +3,50 @@
 PostgreSQL is selected only by DATABASE_URL; a configured but unavailable database
 never falls back to an empty SQLite file. Business schemas and JSON stay intact.
 """
+import atexit
+import os
 import re
 import sqlite3
 from contextlib import contextmanager
+from threading import Lock
 
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.pq import TransactionStatus
+from psycopg_pool import ConnectionPool, PoolTimeout
+
+_pool_lock = Lock()
+_pool = None
+_pool_identity = None
+
+
+def close_pool():
+    global _pool, _pool_identity
+    with _pool_lock:
+        if _pool is not None:
+            _pool.close()
+        _pool = _pool_identity = None
+
+
+atexit.register(close_pool)
+
+
+def postgres_pool(database_url):
+    """Reuse a bounded pool; never reuse a parent's pool after a process fork."""
+    global _pool, _pool_identity
+    identity = (os.getpid(), database_url)
+    with _pool_lock:
+        if _pool is None or _pool_identity != identity:
+            if _pool is not None and _pool_identity[0] == os.getpid():
+                _pool.close()
+            _pool = ConnectionPool(database_url, min_size=1, max_size=3,
+                timeout=15, max_idle=120, max_lifetime=600,
+                check=ConnectionPool.check_connection, name='hospkart-crm',
+                kwargs=dict(connect_timeout=10, row_factory=dict_row,
+                            application_name='hospkart-crm', prepare_threshold=None),
+                open=True)
+            _pool_identity = identity
+        return _pool
 
 WRITE_LOCK = 478502196001
 TOKENS = re.compile(r"('(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"|--[^\n]*|/\*.*?\*/)|(\?)", re.S)
@@ -100,12 +137,8 @@ def connect(sqlite_path, database_url=''):
     if not database_url.startswith(('postgresql://', 'postgres://')):
         raise sqlite3.DatabaseError('DATABASE_URL must be a PostgreSQL connection URL.')
     try:
-        connection = psycopg.connect(database_url, connect_timeout=15, row_factory=dict_row,
-            application_name='hospkart-crm', prepare_threshold=None)
-    except psycopg.Error:
-        raise sqlite3.DatabaseError('The configured PostgreSQL database could not be reached. Existing data was not changed; SQLite fallback is disabled.') from None
-    try:
-        with connection: yield PostgresConnection(connection)
-    except psycopg.Error:
+        with postgres_pool(database_url).connection() as connection:
+            yield PostgresConnection(connection)
+    except (psycopg.Error, PoolTimeout):
         raise sqlite3.DatabaseError('PostgreSQL could not commit the transaction. Saved data was retained.') from None
 

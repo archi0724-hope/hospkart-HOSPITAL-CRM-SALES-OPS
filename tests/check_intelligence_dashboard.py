@@ -38,6 +38,9 @@ def check():
                 page.locator('#search').fill('Beta Clinic')
                 assert page.locator('#intelligenceOverdue').inner_text() == str(status['followup_counts']['overdue'])
                 assert fixture.client.get('/api/workspace').json['workspace']['revision'] == before['revision']
+                page.evaluate("navigate('leads');window.savedLeadRow=document.querySelector('#sheetLeadRows tr');navigate('dashboard');navigate('leads')")
+                assert page.evaluate("window.savedLeadRow===document.querySelector('#sheetLeadRows tr')")
+                page.evaluate("navigate('dashboard')")
                 page.keyboard.press('Control+k')
                 assert page.locator('#workspaceCommandDialog').is_visible()
                 page.locator('#workspaceCommandInput').fill('Reports')
@@ -59,6 +62,9 @@ def check():
                 page.evaluate('refreshSharedWorkspace(true)')
                 page.wait_for_function('intelligenceSnapshot.revision === sharedWorkspaceRevision && intelligenceSnapshot.workspace_records === 3')
                 assert page.locator('#intelligenceOverdue').inner_text() == '2'
+                page.evaluate("navigate('leads')")
+                assert 'Future lead' in page.locator('#sheetLeadRows').inner_text()
+                page.evaluate("navigate('dashboard')")
                 # Failed server reads use an explicitly labeled browser copy.
                 page.route('**/api/quotesaarthi/knowledge', lambda route:route.fulfill(status=503,content_type='application/json',body='{"ok":false,"error":"Unavailable"}'))
                 page.locator('#intelligenceRefresh').click()

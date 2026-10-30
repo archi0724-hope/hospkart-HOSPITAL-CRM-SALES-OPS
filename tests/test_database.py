@@ -27,10 +27,21 @@ class DatabaseTests(unittest.TestCase):
             with database.connect(path) as conn:self.assertEqual(conn.execute('SELECT count(*) FROM sample').fetchone()[0],0)
 
     def test_configured_postgres_failure_never_falls_back_or_leaks_credentials(self):
-        with patch('database.psycopg.connect',side_effect=psycopg.OperationalError('password=very-private')),patch('database.sqlite3.connect') as sqlite:
+        with patch('database.postgres_pool',side_effect=psycopg.OperationalError('password=very-private')),patch('database.sqlite3.connect') as sqlite:
             with self.assertRaises(sqlite3.DatabaseError) as caught:
                 with database.connect('unused.db','postgresql://private.invalid/db'):pass
             self.assertNotIn('very-private',str(caught.exception));sqlite.assert_not_called()
+
+    def test_pool_reuses_connections_and_replaces_old_configuration(self):
+        with patch.object(database, '_pool', None), patch.object(database, '_pool_identity', None), patch.object(database, 'ConnectionPool') as factory:
+            first = database.postgres_pool('postgresql://first.invalid/db')
+            self.assertIs(first, database.postgres_pool('postgresql://first.invalid/db'))
+            factory.assert_called_once()
+            self.assertEqual(factory.call_args.kwargs['max_size'], 3)
+            self.assertIsNone(factory.call_args.kwargs['kwargs']['prepare_threshold'])
+            database.postgres_pool('postgresql://second.invalid/db')
+            first.close.assert_called_once()
+            self.assertEqual(factory.call_count, 2)
 
     def test_global_write_lock_is_transaction_scoped_and_snapshot_begin_is_consistent(self):
         raw=MagicMock();raw.info.transaction_status=TransactionStatus.IDLE

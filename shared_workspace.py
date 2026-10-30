@@ -105,7 +105,7 @@ def validate_patch(values):
         raise WorkspaceError('The CRM data contains unsupported values. No records were changed.') from None
 
 
-def write(conn, current, values, *, initialized=True):
+def write(conn, current, values, *, initialized=True, preserve_backups=False):
     patch = dict(values)
     # Keep the legacy section aliases consistent with their independent stores.
     segments = {**current['values']['hk_v2_segments'], **patch.get('hk_v2_segments', {})}
@@ -121,20 +121,30 @@ def write(conn, current, values, *, initialized=True):
     merged = {**current['values'], **patch}
     if merged != current['values'] or initialized != current['initialized']:
         now = datetime.now(timezone.utc).isoformat(timespec='seconds')
-        conn.execute('UPDATE crm_workspace SET data=?,revision=revision+1,initialized=?,updated_at=? WHERE id=1',
+        data_sql = '?'
+        if preserve_backups:
+            # Leave the archive inside the database for ordinary record edits.
+            # It must never cross the network or be replaced by the compact view.
+            data_sql = ("jsonb_set(?::jsonb,'{hk_v2_backups}',COALESCE(data::jsonb->'hk_v2_backups','[]'::jsonb))::text"
+                        if getattr(conn, 'backend', 'sqlite') == 'postgresql' else
+                        "json_set(?, '$.hk_v2_backups', json(COALESCE(json_extract(data,'$.hk_v2_backups'),'[]')))")
+        conn.execute('UPDATE crm_workspace SET data='+data_sql+',revision=revision+1,initialized=?,updated_at=? WHERE id=1',
                      (json.dumps(merged, ensure_ascii=False, allow_nan=False), int(initialized), now))
-    return read(conn)
+        return {**current, 'values': merged, 'revision': current['revision'] + 1,
+                'initialized': initialized, 'updated_at': now}
+    return current
 
 
-def save(conn, values, expected_revision, initialize_only=False):
+def save(conn, values, expected_revision, initialize_only=False, *, compact=False):
     if isinstance(expected_revision, bool) or not isinstance(expected_revision, int) or expected_revision < 0:
         raise WorkspaceError('A current workspace revision is required.')
     validate_patch(values)
     conn.execute('BEGIN IMMEDIATE')
-    current = read(conn)
+    preserve_backups = compact and 'hk_v2_backups' not in values
+    current = read(conn, omit_backups=preserve_backups)
     if expected_revision != current['revision'] or initialize_only and current['initialized']:
-        raise WorkspaceError('Another user saved newer CRM data. Your changes were not applied. Review the refreshed records and retry; your unsaved copy is available to download.', 409, current)
-    return write(conn, current, values)
+        raise WorkspaceError('Another user saved newer CRM data. Your changes were not applied. Review the refreshed records and retry; your unsaved copy is available to download.', 409, read(conn) if preserve_backups else current)
+    return write(conn, current, values, preserve_backups=preserve_backups)
 
 
 def reset(conn, expected_revision=None):
@@ -215,8 +225,9 @@ def register(app, db_conn):
     @routes.get('')
     def get_workspace():
         with db_conn() as conn:
-            version = conn.execute('SELECT revision,initialized FROM crm_workspace WHERE id=1').fetchone()
-            if request.args.get('revision') == str(version['revision']):
+            version = conn.execute('SELECT revision,initialized,updated_at FROM crm_workspace WHERE id=1').fetchone()
+            if request.args.get('revision') == str(version['revision']) and (
+                    'updated_at' not in request.args or request.args['updated_at'] == (version['updated_at'] or '')):
                 return jsonify(ok=True, unchanged=True, revision=version['revision'], initialized=bool(version['initialized']))
             current = read(conn)
         return jsonify(ok=True, workspace=current)
@@ -228,8 +239,16 @@ def register(app, db_conn):
             raise WorkspaceError('Provide a CRM workspace save request.')
         if not isinstance(body.get('initialize_only', False), bool):
             raise WorkspaceError('Invalid migration request.')
+        if body.get('response', 'full') not in ('full', 'changes'):
+            raise WorkspaceError('Invalid save response mode.')
         with db_conn() as conn:
-            current = save(conn, body.get('values'), body.get('revision'), body.get('initialize_only', False))
+            current = save(conn, body.get('values'), body.get('revision'), body.get('initialize_only', False), compact=body.get('response') == 'changes')
+        if body.get('response') == 'changes':
+            keys = set(body['values'])
+            # Section aliases are saved together and must also reach the browser together.
+            if keys.intersection({'hk_v2_segments', 'hk_v2_served', 'hk_v2_doctors', 'hk_v2_potential'}):
+                keys.update({'hk_v2_segments', 'hk_v2_served', 'hk_v2_doctors', 'hk_v2_potential'})
+            current = {**current, 'values': {key: current['values'][key] for key in keys}}
         return jsonify(ok=True, workspace=current)
 
     app.register_blueprint(routes)

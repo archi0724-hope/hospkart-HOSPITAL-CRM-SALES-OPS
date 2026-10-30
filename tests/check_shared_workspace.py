@@ -64,6 +64,13 @@ def check():
                     assert b.evaluate("clients.find(row=>row.id==='UPLOAD-001').mobile") == '0012345678'
                     assert a.locator('#kpiClients').inner_text() == b.locator('#kpiClients').inner_text()
 
+                    # Warm startup checks the server version without redownloading
+                    # the workspace or its saved checkpoint archive.
+                    with b.expect_response(lambda response: '/api/workspace?' in response.url and 'updated_at=' in response.url) as cached:
+                        b.reload(); ready(b)
+                    assert cached.value.json()['unchanged'] is True
+                    assert b.evaluate("clients.some(row=>row.id==='UPLOAD-001')")
+
                     # Independent imported sections also travel through the real upload route.
                     for scope, control in [('rghs', 'rghsImportFile'), ('doctors', 'doctorImportFile'), ('potential', 'potentialImportFile')]:
                         a.set_input_files('#' + control, str(fixture))

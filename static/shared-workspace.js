@@ -8,8 +8,9 @@ let sharedWorkspacePolling = false;
 let sharedWorkspaceTimer = null;
 let browserWorkspaceRecovery = null;
 
-async function workspaceRequest(data, conditional = false) {
-  const response = await fetch('/api/workspace' + (conditional ? '?revision=' + sharedWorkspaceRevision : ''), {
+async function workspaceRequest(data, conditional = false, cachedVersion = null) {
+  const query = cachedVersion ? '?'+new URLSearchParams({revision:cachedVersion.revision,updated_at:cachedVersion.updated_at}) : conditional ? '?revision='+sharedWorkspaceRevision : '';
+  const response = await fetch('/api/workspace' + query, {
     method: data === undefined ? 'GET' : 'POST', cache: 'no-store',
     headers: data === undefined ? {} : {'Content-Type': 'application/json', 'X-CRM-Request': '1'},
     body: data === undefined ? undefined : JSON.stringify(data), signal: AbortSignal.timeout(30000)
@@ -100,25 +101,27 @@ async function acceptWorkspaceState(state, external = false) {
   for (const key of dashboardKeys) {
     if (Object.prototype.hasOwnProperty.call(state.values, key)) dashboardStorage.set(key, JSON.stringify(state.values[key]));
   }
-  await cacheDashboardRecords(state.values);
-  if (browserCacheReady) {
-    try {await databaseTransaction({hk_shared_connection_v1: window.location.origin});} catch (_) {}
-  }
+  // Commit the version and records together so an interrupted cache write cannot
+  // mark an incomplete browser copy as current.
+  await cacheDashboardRecords(state.values, {
+    hk_shared_connection_v1: window.location.origin,
+    hk_shared_version_v1: JSON.stringify({revision:state.revision,updated_at:state.updated_at})
+  });
   workspaceStatus('Shared database connected · All users on this CRM share saved records · Revision ' + state.revision);
   window.dispatchEvent(new CustomEvent('crm:workspace-saved',{detail:{revision:state.revision}}));
   return true;
 }
 
 async function initializeDashboardStorage() {
-  await refreshAdminAccess();
-  await initializeBrowserCache();
-  let local = {}, previousSharedCache = false;
+  await Promise.all([refreshAdminAccess(), initializeBrowserCache()]);
+  let local = {}, previousSharedCache = false, savedVersion = null;
   if (browserCacheReady) {
     const transaction = dashboardDatabase.transaction('records', 'readonly');
     await new Promise(resolve => {
-      const records = transaction.objectStore('records'), marker = records.get('hk_shared_connection_v1'), recovery = records.get('hk_browser_recovery_v1');
+      const records = transaction.objectStore('records'), marker = records.get('hk_shared_connection_v1'), recovery = records.get('hk_browser_recovery_v1'), version = records.get('hk_shared_version_v1');
       marker.onsuccess = () => {previousSharedCache = marker.result === window.location.origin;};
       recovery.onsuccess = () => {try {browserWorkspaceRecovery = JSON.parse(recovery.result);} catch (_) {}};
+      version.onsuccess = () => {try {savedVersion = JSON.parse(version.result);} catch (_) {}};
       transaction.oncomplete = resolve; transaction.onabort = resolve;
     });
   }
@@ -129,7 +132,17 @@ async function initializeDashboardStorage() {
   }
   if (browserWorkspaceRecovery) await preserveBrowserWorkspace(browserWorkspaceRecovery.values, browserWorkspaceRecovery.reason, browserWorkspaceRecovery.visible !== false);
   try {
-    let result = await workspaceRequest();
+    let cachedVersion = null;
+    try {
+      const version = savedVersion;
+      if (previousSharedCache && dashboardKeys.every(key => Object.hasOwn(local,key)) &&
+          Number.isInteger(version?.revision) && typeof version.updated_at === 'string') cachedVersion = version;
+    } catch (_) {}
+    let result = await workspaceRequest(undefined, false, cachedVersion);
+    if (result.unchanged && cachedVersion) result.workspace = {
+      revision:cachedVersion.revision,updated_at:cachedVersion.updated_at,
+      initialized:result.initialized,values:local
+    };
     const hasLocal = hasBrowserBusinessData(local);
     if (!result.workspace.initialized && hasLocal && crmAdminSession.can_edit) {
       await preserveBrowserWorkspace(local, 'Your previous browser records were preserved before moving to the shared database.');
@@ -183,7 +196,7 @@ function commitDashboardRecords(values) {
       if (!crmAdminSession.can_edit) throw new Error('Data changes are unavailable until the server reconnects.');
       if (!dashboardReady) throw new Error('The shared database is unavailable. These changes were not saved.');
       if (epoch !== sharedWorkspaceExternalEpoch) throw new Error('Shared records changed while this operation was waiting. Review the refreshed records and retry.');
-      const result = await workspaceRequest({revision: sharedWorkspaceRevision, values: pending});
+      const result = await workspaceRequest({revision: sharedWorkspaceRevision, values: pending, response: 'changes'});
       await acceptWorkspaceState(result.workspace);
       dashboardChanges?.postMessage('saved');
     } catch (error) {

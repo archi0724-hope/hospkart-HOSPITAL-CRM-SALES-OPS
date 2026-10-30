@@ -51,6 +51,37 @@ class SharedWorkspaceTests(unittest.TestCase):
         self.assertEqual(rejected.json['workspace']['values']['hk_v2_clients'][0]['name'], 'First user')
         self.assertEqual(self.get()['values']['hk_v2_clients'][0]['name'], 'First user')
 
+    def test_compact_save_preserves_other_records_and_returns_section_aliases(self):
+        clients = [{'id': 'c1', 'name': 'Kept hospital'}]
+        self.save({'hk_v2_clients': clients})
+        doctors = [{'id': 'd1', 'name': 'Updated doctor'}]
+        response = self.save({'hk_v2_doctors': doctors}, response='changes')
+        self.assertEqual(response.status_code, 200)
+        values = response.json['workspace']['values']
+        self.assertNotIn('hk_v2_clients', values)
+        self.assertNotIn('hk_v2_backups', values)
+        self.assertEqual(values['hk_v2_doctors'], doctors)
+        self.assertEqual(values['hk_v2_segments']['doctors'], doctors)
+        self.assertEqual(self.get()['values']['hk_v2_clients'], clients)
+        rejected = self.save({'hk_v2_doctors': []}, revision=0, response='changes')
+        self.assertEqual(rejected.status_code, 409)
+        self.assertEqual(rejected.json['workspace']['values']['hk_v2_clients'], clients)
+
+    def test_browser_cache_requires_matching_revision_and_timestamp(self):
+        state = self.save({'hk_v2_clients': [{'id': 'c1', 'name': 'Current hospital'}]}).json['workspace']
+        result = self.user_a.get('/api/workspace', query_string={'revision': state['revision'], 'updated_at': state['updated_at']})
+        self.assertTrue(result.json['unchanged'])
+        different = self.user_a.get('/api/workspace', query_string={'revision': state['revision'], 'updated_at': 'older-cache'})
+        self.assertEqual(different.json['workspace']['values']['hk_v2_clients'][0]['name'], 'Current hospital')
+
+    def test_compact_record_edit_keeps_saved_checkpoint_archive(self):
+        checkpoint = {'id': 'saved', 'clients': [{'id': 'old', 'name': 'Historic hospital'}], 'calls': [], 'feedback': [], 'invoiceWorkbook': None}
+        self.save({'hk_v2_backups': [checkpoint]})
+        response = self.save({'hk_v2_clients': [{'id': 'new', 'name': 'Current hospital'}]}, response='changes')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('hk_v2_backups', response.json['workspace']['values'])
+        self.assertEqual(self.get()['values']['hk_v2_backups'], [checkpoint])
+
     def test_initial_migration_cannot_replace_an_initialized_workspace(self):
         self.save({'hk_v2_clients': [{'id': '1', 'name': 'Shared'}]}, initialize_only=True)
         result = self.save({'hk_v2_clients': [{'id': '2', 'name': 'Old browser'}]}, initialize_only=True)

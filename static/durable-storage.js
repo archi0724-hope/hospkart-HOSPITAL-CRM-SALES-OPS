@@ -68,8 +68,8 @@ async function initializeBrowserCache() {
     browserStorageNotice('Browser storage could not be opened. Your existing records are kept. Enable site storage and reload. '+error.message);
   }
 }
-async function cacheDashboardRecords(values) {
-  const serialized=Object.fromEntries(Object.entries(values).map(([key,value])=>[key,JSON.stringify(value)]));
+async function cacheDashboardRecords(values, metadata = {}) {
+  const serialized={...Object.fromEntries(Object.entries(values).map(([key,value])=>[key,JSON.stringify(value)])),...metadata};
   if(browserCacheReady){
     try{
     await databaseTransaction(serialized);
