@@ -94,16 +94,16 @@ async function publishBrowserWorkspaceRecovery() {
   } catch (error) {toast('Restore was not saved: ' + error.message);}
 }
 
-async function acceptWorkspaceState(state, external = false) {
+async function acceptWorkspaceState(state, external = false, cached = false) {
   if (!state || state.revision < sharedWorkspaceRevision) return false;
   if (external && state.revision !== sharedWorkspaceRevision) sharedWorkspaceExternalEpoch++;
   sharedWorkspaceRevision = state.revision; sharedWorkspaceInitialized = state.initialized;
-  for (const key of dashboardKeys) {
+  for (const key of cached ? [] : dashboardKeys) {
     if (Object.prototype.hasOwnProperty.call(state.values, key)) dashboardStorage.set(key, JSON.stringify(state.values[key]));
   }
   // Commit the version and records together so an interrupted cache write cannot
   // mark an incomplete browser copy as current.
-  await cacheDashboardRecords(state.values, {
+  if (!cached) await cacheDashboardRecords(state.values, {
     hk_shared_connection_v1: window.location.origin,
     hk_shared_version_v1: JSON.stringify({revision:state.revision,updated_at:state.updated_at})
   });
@@ -139,7 +139,8 @@ async function initializeDashboardStorage() {
           Number.isInteger(version?.revision) && typeof version.updated_at === 'string') cachedVersion = version;
     } catch (_) {}
     let result = await workspaceRequest(undefined, false, cachedVersion);
-    if (result.unchanged && cachedVersion) result.workspace = {
+    const verifiedCache = !!(result.unchanged && cachedVersion);
+    if (verifiedCache) result.workspace = {
       revision:cachedVersion.revision,updated_at:cachedVersion.updated_at,
       initialized:result.initialized,values:local
     };
@@ -157,7 +158,7 @@ async function initializeDashboardStorage() {
     } else if (hasLocal && !previousSharedCache) {
       await preserveBrowserWorkspace(local, 'This browser has older local records. The shared database was loaded; download your preserved copy before deciding whether to restore it for everyone.');
     }
-    await acceptWorkspaceState(result.workspace);
+    await acceptWorkspaceState(result.workspace, false, verifiedCache);
     dashboardReady = true;
   } catch (error) {
     dashboardReady = false;

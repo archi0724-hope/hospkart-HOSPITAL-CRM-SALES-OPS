@@ -615,7 +615,8 @@ async function startDashboard(){
  if(Object.keys(missing).length&&dashboardReady&&crmAdminSession.can_edit)await writeDashboardValues({...missing,hk_v2_segments:segmentData});
  if(dashboardReady&&crmAdminSession.admin)await routeGreenPotentialLeads();
  populateFilters();filtered=[...clients];renderAll();document.getElementById('formDate').value=TODAY;document.getElementById('feedbackDate').value=TODAY;
- await loadInvoiceWorkbook();await initializeSpreadsheetSync();await initializeDriveImportLinks();document.body.inert=false;startSharedWorkspaceRefresh();refreshIntegrationHealth();refreshWorkEmailStatus();
+ await loadInvoiceWorkbook();document.body.inert=false;startSharedWorkspaceRefresh();
+ await Promise.all([initializeSpreadsheetSync(),initializeDriveImportLinks()]);refreshIntegrationHealth();refreshWorkEmailStatus();
 }
 startDashboard().catch(error=>{document.body.inert=false;browserStorageNotice('Dashboard could not load: '+error.message)});
 </script>
